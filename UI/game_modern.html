@@ -1,0 +1,2509 @@
+<!--
+══════════════════════════════════════════════════════════════
+DESIGN BRIEF — PROJECT REVIVAL
+══════════════════════════════════════════════════════════════
+
+AESTHETIC: Modern investigation dashboard meets stylish indie game UI.
+Clean, sharp, intentional. Premium web-app feel with crime-board structure.
+
+COLOR PALETTE (5 colors max):
+  1. Accent:      #00f5d4  (Electric Teal)
+  2. Dark Base:   #111118  (Deep Navy Black)
+  3. Panel Dark:  #0d0d1a  (Near Black Blue)
+  4. Neutral:     #e8e6f0  (Cool Off-White)
+  5. Mid Grey:    #3a3a4a  (Cool Grey)
+
+FONTS:
+  - UI/Labels: "Rajdhani", sans-serif (geometric, modern)
+  - Dialogue/Mono: "JetBrains Mono", monospace (terminal feel)
+
+CORE UI RULES:
+  - Accent NEVER used as background fill (except active tab states)
+  - All panels have sharp rectangular borders (1-2px)
+  - L-shaped corner marks on key panels (top-left, bottom-right)
+  - Diamond/square hotspots with crosshair brackets
+  - All section labels ALL CAPS in Rajdhani
+  - Dialogue in mixed case JetBrains Mono
+  - Evidence cards have left accent stripe
+  - Navigation as tab bar with border states
+
+══════════════════════════════════════════════════════════════
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Project Revival — Case File: Ace Johnson</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+  body {
+    margin: 0;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Rajdhani', sans-serif;
+  }
+  canvas { display: block; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+
+const C = {
+  ACCENT:    0x00f5d4,
+  ACCENT_S:  '#00f5d4',
+  ACCENT_D:  0x008f7d,
+  BG_DEEP:   0x0a0a0f,
+  BG_DEEP_S: '#0a0a0f',
+  BG_PANEL:  0x14141c,
+  BG_PANEL_S:'#14141c',
+  BG_PANEL2: 0x1c1c26,
+  BG_PANEL2_S:'#1c1c26',
+  LIGHT:     0xe8e8ed,
+  LIGHT_S:   '#e8e8ed',
+  MUTE:      0x6b6b7a,
+  MUTE_S:    '#6b6b7a',
+  GRID:      0x22222e,
+  RED:       0xff5566,
+  RED_S:     '#ff5566'
+};
+
+const F = { UI: 'Rajdhani, sans-serif', MONO: 'JetBrains Mono, monospace' };
+
+const ROOM_NAMES = {
+  gatehouse: 'THE GATEHOUSE',
+  infirmary: 'THE INFIRMARY',
+  office:    "LIAM'S OFFICE",
+  morgue:    'THE MORGUE'
+};
+const ROOM_KEYS = ['gatehouse', 'infirmary', 'office', 'morgue'];
+
+const EVIDENCE_META = {
+  'AUTOPSY REPORT':    { type: 'DOCUMENT',  room: 'MORGUE' },
+  'GATE':              { type: 'PHYSICAL',  room: 'GATEHOUSE' },
+  'CAKE':              { type: 'PHYSICAL',  room: 'GATEHOUSE' },
+  'DART':              { type: 'PHYSICAL',  room: 'GATEHOUSE' },
+  'WHEELBARROW':       { type: 'PHYSICAL',  room: 'GATEHOUSE' },
+  'CALL LOGS':         { type: 'DOCUMENT',  room: 'OFFICE' },
+  'COMPUTER':          { type: 'PHYSICAL',  room: 'OFFICE' },
+  'MOTIVE NOTICE':     { type: 'DOCUMENT',  room: 'OFFICE' },
+  'PHONE':             { type: 'PHYSICAL',  room: 'OFFICE' },
+  'HANDBOOK':          { type: 'DOCUMENT',  room: 'OFFICE' },
+  'INFIRMARY STATE #1':{ type: 'PHYSICAL',  room: 'INFIRMARY' },
+  'INFIRMARY STATE #2':{ type: 'PHYSICAL',  room: 'INFIRMARY' },
+  'COFFINS':           { type: 'PHYSICAL',  room: 'MORGUE' },
+  "GAEL'S ACCOUNT":    { type: 'TESTIMONY', room: 'GATEHOUSE' },
+  "ZURI'S ACCOUNT":    { type: 'TESTIMONY', room: 'GATEHOUSE' },
+  "DRAVEN'S ACCOUNT":  { type: 'TESTIMONY', room: 'INFIRMARY' }
+};
+
+const SUSPECTS = [
+  { id:'liam',   name:'LIAM',   portrait:'portrait_liam',   desc:'The Warden. Was he following protocol.', correct:true  },
+  { id:'roy',    name:'ROY',    portrait:'portrait_roy',    desc:'The Co-Host. Conveniently elsewhere.',   correct:false },
+  { id:'zuri',   name:'ZURI',   portrait:'portrait_zuri',   desc:'Witness. Present when it happened.',     correct:false },
+  { id:'draven', name:'DRAVEN', portrait:'portrait_draven', desc:'Treated Ace. Then left.',                correct:false },
+  { id:'gael',   name:'GAEL',   portrait:'portrait_gael',   desc:'Saw the mystery man. Said nothing.',     correct:false }
+];
+
+const HINTS = {
+  gatehouse: [
+    'That cake did not bake itself.',
+    'The dart is on the floor. Someone put it there.',
+    'One direction through that gate is easy. The other is not.'
+  ],
+  infirmary: [
+    'Clean scenes are accidents or intentions. This is not an accident.',
+    'What makes a mess this big without the usual evidence of a mess.',
+    'Check when things happened. Times matter.'
+  ],
+  office: [
+    'Prepared people write things down in advance.',
+    'Call logs do not lie. People do.',
+    'A broken phone still has a history.'
+  ],
+  morgue: [
+    'Things do not move themselves.',
+    'Empty spaces tell stories.',
+    'Where did everything go. And why there.'
+  ]
+};
+
+// helper to build a protagonist line
+const P = (text) => ({ speaker:'— — —', portrait:'portrait_protagonist', text, italic:true });
+// helper to build any speaker line
+const S = (speaker, portrait, text) => ({ speaker, portrait, text, italic:false });
+
+const HOTSPOTS = {
+  gatehouse: [
+    { id:'gate', label:'THE GATE', x:750, y:300,
+      lines:[ P('Heavy iron.'), P('Liam got in from outside no problem.'),
+              P('From this side it barely moves.'), P('Someone planned that.') ],
+      collect:'GATE' },
+    { id:'cake', label:'THE CAKE', x:220, y:380,
+      lines:[ P('A five tier cake.'), P('In a gatehouse.'), P('Next to coffins.'),
+              P('Straw through one tier. Lip stain on one end. Other end clean.') ],
+      collect:'CAKE' },
+    { id:'dart', label:'THE DART', x:400, y:530,
+      lines:[ P('A dart. Blood on the needle.'), P('Someone used this.'),
+              P('Empty vial inside.'), P('Whatever was loaded here is already gone.') ],
+      collect:'DART' },
+    { id:'wheelbarrow', label:'THE WHEELBARROW', x:620, y:450,
+      lines:[ P('This belongs in the garden shed.'),
+              P('Why is it here next to the coffins.'),
+              P('Used recently.') ],
+      collect:'WHEELBARROW' },
+    { id:'coffins', label:'THE COFFINS', x:830, y:400,
+      lines:[ P('These should be in the morgue.'),
+              P('All the occupied ones moved here.'),
+              P('Including one that would have been Aces.'),
+              P('Someone is standing in front of them. Not moving.') ],
+      collect:'COFFINS',
+      after:'coffins_block' }
+  ],
+  infirmary: [
+    { id:'centerbed', label:'THE CENTER BED', x:480, y:350,
+      lines:[ P('This is probably where Ace was.'),
+              P('Serious damage in here.'),
+              P('But there is no blood.'),
+              P('Not a single stain.') ],
+      collect:'INFIRMARY STATE #1' },
+    { id:'floormed', label:'THE FLOOR', x:300, y:500,
+      lines:[ P('Medicine everywhere.'),
+              P('Thrown around randomly.'),
+              P('Something is missing from the logs.'),
+              P('The logs are too destroyed to read.') ],
+      collect:'INFIRMARY STATE #2' },
+    { id:'walls', label:'THE WALLS', x:150, y:250,
+      lines:[ P('Cleanest crime scene I have ever seen.'),
+              P('No blood on the walls.'),
+              P('Floor is not even wet.'),
+              P('Someone cleaned this. Or the method did not involve bleeding.') ] },
+    { id:'cabinet', label:'THE MEDICINE CABINET', x:780, y:280,
+      lines:[ P('Completely wiped out.'),
+              P('Used, taken, or on the floor.'),
+              P('Can not tell what is missing.'),
+              P('Logs are unreadable.') ] },
+    { id:'door', label:'THE DOOR', x:880, y:320,
+      lines:[ P('Liam came out of this door at 1:30 PM.'),
+              P("Roy's text showed the corpse at 1:50 PM."),
+              P('Very tight window.') ] }
+  ],
+  office: [
+    { id:'computer', label:'THE COMPUTER', x:520, y:300,
+      lines:[ P('Flash drive on the side.'),
+              P('Screen is a spinning loading icon.'),
+              P('Malware maybe.'),
+              P('Can not use it right now.') ],
+      collect:'COMPUTER' },
+    { id:'calllogs', label:'THE CALL LOGS', x:350, y:320,
+      lines:[ P('Controls the visiting area phones.'),
+              P('Records every call made.'),
+              P('Anyone with office access could use this.') ],
+      collect:'CALL LOGS',
+      after:'call_logs_panel' },
+    { id:'motive', label:'THE MOTIVE NOTICE', x:650, y:380,
+      lines:[ P('Notes signed by Liam.'),
+              P('Instructions to Roy.'),
+              P('If anyone dies contact Liam so he can return.'),
+              P('He wrote this in advance.') ],
+      collect:'MOTIVE NOTICE' },
+    { id:'phone', label:'THE BROKEN PHONE', x:480, y:420,
+      lines:[ P('Broken phone in a drawer.'),
+              P('Note from Liam attached.'),
+              P('The phone Ace gave me in the riot. Outside connections. Broken.'),
+              P('P.S. Ace said this phone is his. Liam kept it.') ],
+      collect:'PHONE' },
+    { id:'handbook', label:'THE HANDBOOK', x:200, y:350,
+      lines:[ P("Roy's handbook."),
+              P('He texted Liam the moment Ace was hit.'),
+              P('Liam entered the prison at 12:35 PM.'),
+              P("Roy's photo of the security footage at 1:50 PM. Mutilated corpse. Unrecognisable.") ],
+      collect:'HANDBOOK' }
+  ],
+  morgue: [
+    { id:'coolers', label:'THE EMPTY COOLERS', x:200, y:300,
+      lines:[ P('Every occupied cooler emptied.'),
+              P('They left the empty ones.'),
+              P('Someone specifically moved the bodies.'),
+              P("All of them. Including Ace's.") ],
+      collect:'COFFINS',
+      collectExtra:'Same ones from the Gatehouse. Why move every body to one location.' },
+    { id:'gurney', label:'THE GURNEY', x:480, y:400,
+      lines:[ P('Something heavy was here recently.'),
+              P('Marks on the surface are fresh.'),
+              P('Body. Coffin. Cake on a wheeled table.'),
+              P('Everything in this case is on wheels.') ] },
+    { id:'storagelog', label:'THE STORAGE LOG', x:720, y:480,
+      lines:[ P('Log of what was stored here.'),
+              P('Wheelbarrow listed as stored here temporarily.'),
+              P('It is not here anymore.'),
+              P('It is in the Gatehouse.') ] },
+    { id:'autopsy', label:'THE AUTOPSY AREA', x:750, y:280,
+      lines:[ P('No proper autopsy was ever done.'),
+              P('Body is gone.'),
+              P('Security footage was the only record.'),
+              P('Cause of death unknown. Guesses: poison, overdose, air embolism. None confirmed.') ],
+      collect:'AUTOPSY REPORT' }
+  ]
+};
+
+const NPCS = {
+  gatehouse: [
+    { id:'zuri', name:'ZURI', portrait:'portrait_zuri', x:480, y:455, color:0xd4621a,
+      lines:[ S('ZURI','portrait_zuri','Ace wanted to come here. I thought it was just a walk.'),
+              S('ZURI','portrait_zuri','The dart came from nowhere. Nobody else was there. I am sure of it.'),
+              S('ZURI','portrait_zuri','Saw the man with the wheelbarrow twice. Second time he had a coffin. Tried to follow. Lost him.'),
+              S('ZURI','portrait_zuri','That cake bothered me from the start. Why bring a cake in here.') ],
+      collect:"ZURI'S ACCOUNT" },
+    { id:'gael', name:'GAEL', portrait:'portrait_gael', x:130, y:460, color:0xb5621a,
+      lines:[ S('GAEL','portrait_gael','Was not doing anything wrong. Just walking.'),
+              S('GAEL','portrait_gael','Heard something near the gate. Hid. Just instinct.'),
+              S('GAEL','portrait_gael','Pink haired man waved me off. Said deliveries.'),
+              S('GAEL','portrait_gael','On the phone the entire time with that cake. Could not hear him.') ],
+      collect:"GAEL'S ACCOUNT" }
+  ],
+  infirmary: [
+    { id:'draven', name:'DRAVEN', portrait:'portrait_draven', x:600, y:450, color:0x2a2035,
+      lines:[ S('DRAVEN','portrait_draven','I treated him. Medicine as precaution. He told me to leave.'),
+              S('DRAVEN','portrait_draven','The dart had an empty vial. I assumed the contents had dispersed. Treated him for a potential injection.'),
+              S('DRAVEN','portrait_draven','At 1:30 I saw Liam leaving the Infirmary. Texted Ace instead. No reply.') ],
+      collect:"DRAVEN'S ACCOUNT",
+      conditional:{ has:'DART',
+        line: P('Draven assumed contents dispersed. But the dart was already empty when it hit Ace. Was it ever loaded.') } }
+  ],
+  office: [
+    { id:'liam', name:'LIAM', portrait:'portrait_liam', x:820, y:450, color:0x1e2a3a,
+      lines:[ S('LIAM','portrait_liam','I came back because Roy contacted me. Protocol.'),
+              S('LIAM','portrait_liam','I was in the Infirmary. Checked on Ace. Found nothing unusual. Left.'),
+              S('LIAM','portrait_liam','I was in the Garden after. Ask Roy.') ],
+      conditional:{ has:'HANDBOOK',
+        line: P("Nothing unusual. But Roy's photo shows a mutilated body at 1:50 PM. Liam left at 1:30. 20 minute window.") } }
+  ],
+  morgue: [
+    { id:'roy', name:'ROY', portrait:'portrait_roy', x:850, y:450, color:0x2d4a2d,
+      lines:[ S('ROY','portrait_roy','I contacted Liam when I knew something was wrong. That is what I was supposed to do.'),
+              S('ROY','portrait_roy','I went to the cafeteria after. Not near the Infirmary.'),
+              S('ROY','portrait_roy','The photo. I got back to the office and that was on the screen. I do not know when it happened.'),
+              S('ROY','portrait_roy','I told Liam we could check the footage any time. Did not seem urgent.') ] }
+  ]
+};
+
+const CALL_LOGS = [
+  { tag:'LOG 1',
+    body:'Ace tells unknown person the prison location — Central Transylvania. This is his only chance since Liam is gone.' },
+  { tag:'LOG 2',
+    body:'One day later. Man went to Pennsylvania because he thought Transylvania was fictional. Ace yells at him.' },
+  { tag:'LOG 3',
+    body:'One day later. Man at correct location. Bought a suit. Brought a cake. Has a plan. Tells Ace to come to the Gatehouse.' },
+  { tag:'LOG 4',
+    body:'Immediately after. Ace calls his mother. Tells her he will be home soon.' }
+];
+
+const CONTRADICTIONS = [
+  { id:1, requires:['DART',"DRAVEN'S ACCOUNT"],
+    text:'Draven assumed the vial had contents. It was empty before it hit Ace. Was the dart ever a real weapon.' },
+  { id:2, requires:['INFIRMARY STATE #2','AUTOPSY REPORT'],
+    text:'The footage shows serious mutilation. The crime scene has no blood. How does that work.' },
+  { id:3, requires:['HANDBOOK',"DRAVEN'S ACCOUNT"],
+    text:'Liam said he would check on Ace after Draven left. Draven left at 1 PM. Liam seen leaving at 1:30 PM. 30 minutes alone with the victim.' },
+  { id:4, requires:['MOTIVE NOTICE'],
+    text:'Liam wrote instructions for what to do if someone died. He prepared for this.' },
+  { id:5, requires:['CALL LOGS','CAKE','DART'],
+    text:'The mystery man brought the cake and had a plan he would not reveal. Dart had no visible shooter. The cake has a straw through it.' }
+];
+
+// =========================================================
+// PORTRAIT BASE64 DATA
+// Paste base64-encoded PNG/JPG data URIs below for each character.
+// Leave null to use an auto-generated fallback placeholder.
+// =========================================================
+const PORTRAITS = {
+  portrait_protagonist: null,
+  portrait_liam:        null,
+  portrait_roy:         null,
+  portrait_zuri:        null,
+  portrait_draven:      null,
+  portrait_gael:        null,
+  portrait_mystery:     null
+};
+
+// =========================================================
+// HELPERS
+// =========================================================
+function drawCornerMarks(s, x, y, w, h, color, len) {
+  len = len || 14;
+  const g = s.add.graphics();
+  g.lineStyle(2, color, 1);
+  // top-left
+  g.beginPath(); g.moveTo(x, y+len); g.lineTo(x, y); g.lineTo(x+len, y); g.strokePath();
+  // bottom-right
+  g.beginPath(); g.moveTo(x+w-len, y+h); g.lineTo(x+w, y+h); g.lineTo(x+w, y+h-len); g.strokePath();
+  return g;
+}
+
+function drawAllCornerMarks(s, x, y, w, h, color, len) {
+  len = len || 16;
+  const g = s.add.graphics();
+  g.lineStyle(2, color, 1);
+  // TL
+  g.beginPath(); g.moveTo(x, y+len); g.lineTo(x, y); g.lineTo(x+len, y); g.strokePath();
+  // TR
+  g.beginPath(); g.moveTo(x+w-len, y); g.lineTo(x+w, y); g.lineTo(x+w, y+len); g.strokePath();
+  // BL
+  g.beginPath(); g.moveTo(x, y+h-len); g.lineTo(x, y+h); g.lineTo(x+len, y+h); g.strokePath();
+  // BR
+  g.beginPath(); g.moveTo(x+w-len, y+h); g.lineTo(x+w, y+h); g.lineTo(x+w, y+h-len); g.strokePath();
+  return g;
+}
+
+function drawCanvasFrame(s) {
+  const g = s.add.graphics();
+  g.lineStyle(2, C.ACCENT, 1);
+  g.strokeRect(1, 1, 958, 638);
+  g.setDepth(9999);
+  // big corner marks at canvas corners
+  const len = 22;
+  const cg = s.add.graphics();
+  cg.lineStyle(3, C.ACCENT, 1);
+  cg.beginPath(); cg.moveTo(0, len); cg.lineTo(0, 0); cg.lineTo(len, 0); cg.strokePath();
+  cg.beginPath(); cg.moveTo(960-len, 0); cg.lineTo(960, 0); cg.lineTo(960, len); cg.strokePath();
+  cg.beginPath(); cg.moveTo(0, 640-len); cg.lineTo(0, 640); cg.lineTo(len, 640); cg.strokePath();
+  cg.beginPath(); cg.moveTo(960-len, 640); cg.lineTo(960, 640); cg.lineTo(960, 640-len); cg.strokePath();
+  cg.setDepth(9999);
+  return [g, cg];
+}
+
+function makeButton(s, x, y, w, h, label, opts) {
+  opts = opts || {};
+  const fontSize = opts.fontSize || 14;
+  const cont = s.add.container(x, y);
+  const bg = s.add.rectangle(0, 0, w, h, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+  const txt = s.add.text(w/2, h/2, label, {
+    fontFamily: F.UI, fontSize: fontSize+'px', fontStyle:'600',
+    color: C.ACCENT_S
+  }).setOrigin(0.5);
+  cont.add([bg, txt]);
+  bg.setInteractive({ useHandCursor:true });
+  bg.on('pointerover', () => { bg.setFillStyle(C.ACCENT, 1); txt.setColor(C.BG_DEEP_S); });
+  bg.on('pointerout',  () => { bg.setFillStyle(C.BG_PANEL, 1); txt.setColor(C.ACCENT_S); });
+  if (opts.onClick) bg.on('pointerdown', opts.onClick);
+  cont.bg = bg; cont.txt = txt;
+  return cont;
+}
+
+// =========================================================
+// BOOTSCENE — bake all room textures + character portraits
+// =========================================================
+class BootScene extends Phaser.Scene {
+  constructor() { super('BootScene'); }
+  create() {
+    this.bakeBackgrounds();
+    this.bakeUIBits();
+    this.loadPortraits();
+  }
+
+  // ---- portrait loading via base64 with fallback ----
+  loadPortraits() {
+    const keys = Object.keys(PORTRAITS);
+    const toLoad = [];
+
+    keys.forEach(key => {
+      const data = PORTRAITS[key];
+      if (!data) {
+        this.generateFallbackPortrait(key);
+      } else {
+        toLoad.push(key);
+      }
+    });
+
+    if (toLoad.length === 0) {
+      this.scene.start('IntroScene');
+      return;
+    }
+
+    let loaded = 0;
+    toLoad.forEach(key => {
+      this.textures.once('addtexture-' + key, () => {
+        loaded++;
+        if (loaded === toLoad.length) {
+          this.scene.start('IntroScene');
+        }
+      });
+      this.textures.addBase64(key, PORTRAITS[key]);
+    });
+  }
+
+  generateFallbackPortrait(key) {
+    const fallbackColors = {
+      portrait_protagonist: { bg: 0x14141c, accent: C.ACCENT },
+      portrait_liam:        { bg: 0x1a1a2a, accent: 0x6a8aa0 },
+      portrait_roy:         { bg: 0x1a1a18, accent: 0x2d4a2d },
+      portrait_zuri:        { bg: 0x1a1210, accent: 0xd4621a },
+      portrait_draven:      { bg: 0x12121a, accent: 0xc49a2a },
+      portrait_gael:        { bg: 0x141a14, accent: 0xb5621a },
+      portrait_mystery:     { bg: 0x1a1210, accent: 0xe87ca0 }
+    };
+    const fc = fallbackColors[key] || { bg: 0x14141c, accent: C.ACCENT };
+    const name = key.replace('portrait_', '').toUpperCase();
+    const W = 160, H = 200;
+
+    const rt = this.add.renderTexture(0, 0, W, H).setVisible(false);
+    rt.fill(fc.bg);
+
+    const g = this.add.graphics();
+    g.lineStyle(2, fc.accent, 1);
+    g.strokeRect(2, 2, W - 4, H - 4);
+    if (key === 'portrait_protagonist') {
+      g.fillStyle(0x05050a, 1);
+      g.fillEllipse(W / 2, 70, 60, 68);
+      g.lineStyle(2, C.ACCENT, 0.6);
+      g.strokeEllipse(W / 2, 70, 60, 68);
+      g.fillStyle(0x05050a, 1);
+      g.beginPath();
+      g.moveTo(20, H); g.lineTo(42, 120); g.lineTo(W - 42, 120); g.lineTo(W - 20, H);
+      g.closePath(); g.fillPath();
+      g.lineStyle(2, C.ACCENT, 0.6); g.strokePath();
+      g.fillStyle(C.ACCENT, 0.6);
+      g.fillCircle(64, 70, 2); g.fillCircle(96, 70, 2);
+    } else {
+      g.fillStyle(fc.accent, 0.2);
+      g.fillCircle(W / 2, 60, 28);
+      g.beginPath();
+      g.moveTo(35, H); g.lineTo(50, 110); g.lineTo(W - 50, 110); g.lineTo(W - 35, H);
+      g.closePath(); g.fillPath();
+    }
+    rt.draw(g);
+    g.destroy();
+
+    const txt = this.add.text(W / 2, H - 24, name, {
+      fontFamily: F.UI, fontSize: '14px', fontStyle: '700',
+      color: '#' + fc.accent.toString(16).padStart(6, '0'), letterSpacing: 2
+    }).setOrigin(0.5);
+    rt.draw(txt);
+    txt.destroy();
+
+    rt.saveTexture(key);
+    rt.destroy();
+  }
+
+  // ---- helpers
+  mg() { return this.make.graphics({ add:false }); }
+
+  bakeUIBits() {
+    // simple diamond hotspot icon (drawn live in scene; nothing to bake)
+  }
+
+  // -------- ROOM BACKGROUNDS --------
+  bakeBackgrounds() {
+    this.bakeGatehouse();
+    this.bakeInfirmary();
+    this.bakeOffice();
+    this.bakeMorgue();
+  }
+
+  // ---- GATEHOUSE
+  bakeGatehouse() {
+    const W = 960, H = 640;
+    const g = this.mg();
+    // back wall
+    g.fillStyle(0x0e0e16, 1); g.fillRect(0, 0, W, 380);
+    // floor
+    g.fillStyle(0x14141c, 1); g.fillRect(0, 380, W, 260);
+    // perspective grid lines on floor
+    g.lineStyle(1, 0x1c1c26, 1);
+    for (let i = 0; i < 10; i++) {
+      const y = 400 + i * 28;
+      g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.strokePath();
+    }
+    // iron gate centred-back-right
+    const gx = 600, gy = 60, gw = 320, gh = 320;
+    g.fillStyle(0x080810, 1); g.fillRect(gx, gy, gw, gh);
+    // light slit behind gate
+    g.fillStyle(0x9adfd0, 0.18); g.fillRect(gx+30, gy+10, gw-60, gh-30);
+    g.fillStyle(0xb8efe0, 0.10); g.fillRect(gx+50, gy+30, gw-100, gh-60);
+    // gate bars
+    g.lineStyle(4, 0x1c1c26, 1);
+    for (let i = 0; i <= 10; i++) {
+      const bx = gx + i * (gw / 10);
+      g.beginPath(); g.moveTo(bx, gy); g.lineTo(bx, gy+gh); g.strokePath();
+    }
+    // horizontal beams
+    g.lineStyle(3, 0x1c1c26, 1);
+    g.strokeRect(gx, gy, gw, gh);
+    g.beginPath(); g.moveTo(gx, gy+80); g.lineTo(gx+gw, gy+80); g.strokePath();
+    g.beginPath(); g.moveTo(gx, gy+gh-80); g.lineTo(gx+gw, gy+gh-80); g.strokePath();
+    // gate light shaft on floor
+    g.fillStyle(0x9adfd0, 0.06);
+    g.fillTriangle(gx, gy+gh, gx+gw, gy+gh, W*0.55, H);
+
+    // wall divider lines
+    g.lineStyle(1, 0x1c1c26, 1);
+    g.beginPath(); g.moveTo(0, 380); g.lineTo(W, 380); g.strokePath();
+    g.beginPath(); g.moveTo(0, 100); g.lineTo(W, 100); g.strokePath();
+
+    // === CAKE on wheeled table, center-left ===
+    // table
+    g.fillStyle(0x2a2a34, 1); g.fillRect(150, 410, 180, 14);
+    g.fillStyle(0x1a1a22, 1); g.fillRect(150, 424, 180, 4);
+    // wheels
+    g.fillStyle(0x0a0a0f, 1);
+    g.fillCircle(170, 440, 14); g.fillCircle(310, 440, 14);
+    g.lineStyle(2, 0x2a2a34, 1);
+    g.strokeCircle(170, 440, 14); g.strokeCircle(310, 440, 14);
+    // 5 tier cake (cleanly stacked rects + frosting drip lines)
+    const tiers = [
+      { x:170, y:375, w:150, h:35, c:0xe8e0c8 }, // bottom widest, sits on table at y:410
+      { x:182, y:340, w:126, h:32, c:0xefe7d0 },
+      { x:194, y:310, w:102, h:28, c:0xe8e0c8 },
+      { x:206, y:283, w:78,  h:25, c:0xefe7d0 },
+      { x:218, y:257, w:54,  h:24, c:0xe8e0c8 }
+    ];
+    tiers.forEach(t => {
+      g.fillStyle(t.c, 1); g.fillRect(t.x, t.y, t.w, t.h);
+      g.lineStyle(1, 0x14141c, 1); g.strokeRect(t.x, t.y, t.w, t.h);
+    });
+    // frosting drips
+    g.fillStyle(0xefe7d0, 1);
+    [tiers[0], tiers[1], tiers[2], tiers[3]].forEach(t => {
+      for (let i = 0; i < 4; i++) {
+        const dx = t.x + 12 + i * (t.w-24)/3;
+        g.fillTriangle(dx-4, t.y, dx+4, t.y, dx, t.y+8);
+      }
+    });
+    // straw through one tier — accent color
+    g.lineStyle(3, C.ACCENT, 1);
+    g.beginPath(); g.moveTo(245, 235); g.lineTo(245, 375); g.strokePath();
+    // lip stain on one end of straw
+    g.fillStyle(C.RED, 0.85); g.fillCircle(245, 235, 4);
+
+    // === COFFINS stacked right wall ===
+    const cof = [
+      { x:790, y:200, w:160, h:55 },
+      { x:790, y:260, w:160, h:55 },
+      { x:790, y:320, w:160, h:55 }
+    ];
+    cof.forEach((b, i) => {
+      // hexagonal coffin shape
+      g.fillStyle(0x1f1722, 1);
+      const top = b.y, btm = b.y+b.h;
+      const lx = b.x, rx = b.x+b.w;
+      const tlx = lx+18, trx = rx-18;
+      g.beginPath();
+      g.moveTo(tlx, top); g.lineTo(trx, top);
+      g.lineTo(rx, top+12); g.lineTo(rx, btm-12);
+      g.lineTo(trx, btm); g.lineTo(tlx, btm);
+      g.lineTo(lx, btm-12); g.lineTo(lx, top+12);
+      g.closePath(); g.fillPath();
+      g.lineStyle(1, 0x2a1f30, 1); g.strokePath();
+      // accent stripe down center
+      g.lineStyle(2, C.ACCENT, 0.4);
+      g.beginPath(); g.moveTo(b.x+b.w/2, top+6); g.lineTo(b.x+b.w/2, btm-6); g.strokePath();
+      // small cross
+      g.lineStyle(2, C.MUTE, 0.6);
+      g.beginPath(); g.moveTo(b.x+b.w/2-7, top+22); g.lineTo(b.x+b.w/2+7, top+22); g.strokePath();
+      g.beginPath(); g.moveTo(b.x+b.w/2, top+15); g.lineTo(b.x+b.w/2, top+30); g.strokePath();
+    });
+
+    // === WHEELBARROW near coffins ===
+    g.fillStyle(0x2a2a34, 1);
+    // body trapezoid (wider at top = opening)
+    g.beginPath();
+    g.moveTo(540, 430); g.lineTo(700, 430);
+    g.lineTo(680, 470); g.lineTo(560, 470); g.closePath();
+    g.fillPath();
+    g.lineStyle(1, 0x14141c, 1); g.strokePath();
+    // wheel
+    g.fillStyle(0x0a0a0f, 1); g.fillCircle(620, 490, 18);
+    g.lineStyle(2, 0x2a2a34, 1); g.strokeCircle(620, 490, 18);
+    // handles
+    g.lineStyle(3, 0x1f1f28, 1);
+    g.beginPath(); g.moveTo(540, 470); g.lineTo(490, 510); g.strokePath();
+    g.beginPath(); g.moveTo(700, 470); g.lineTo(750, 510); g.strokePath();
+
+    // === DART on floor ===
+    g.lineStyle(2, C.MUTE, 1);
+    g.beginPath(); g.moveTo(380, 535); g.lineTo(420, 535); g.strokePath();
+    g.fillStyle(C.MUTE, 1); g.fillTriangle(420, 535, 432, 532, 432, 538);
+    // fletching
+    g.fillStyle(C.ACCENT, 0.7);
+    g.fillTriangle(370, 535, 380, 530, 380, 540);
+
+    g.generateTexture('bg_gatehouse', W, H);
+    g.destroy();
+  }
+
+  // ---- INFIRMARY (clinical white-grey)
+  bakeInfirmary() {
+    const W = 960, H = 640;
+    const g = this.mg();
+    // walls (lighter than other rooms)
+    g.fillStyle(0x2a2a34, 1); g.fillRect(0, 0, W, 380);
+    // floor (lighter tile)
+    g.fillStyle(0x33333d, 1); g.fillRect(0, 380, W, 260);
+    // tile grid floor
+    g.lineStyle(1, 0x40404a, 1);
+    for (let x = 0; x <= W; x += 60) {
+      g.beginPath(); g.moveTo(x, 380); g.lineTo(x, H); g.strokePath();
+    }
+    for (let y = 380; y <= H; y += 30) {
+      g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.strokePath();
+    }
+    // ceiling tiles top
+    g.fillStyle(0x32323c, 1); g.fillRect(0, 0, W, 70);
+    g.lineStyle(1, 0x44444e, 1);
+    for (let x = 0; x <= W; x += 80) {
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 70); g.strokePath();
+    }
+    g.beginPath(); g.moveTo(0, 35); g.lineTo(W, 35); g.strokePath();
+    g.beginPath(); g.moveTo(0, 70); g.lineTo(W, 70); g.strokePath();
+
+    // overhead light cone on center
+    g.fillStyle(0xeaeaf0, 0.07);
+    g.fillTriangle(440, 70, 520, 70, 700, 380);
+    g.fillTriangle(440, 70, 520, 70, 260, 380);
+    // flickering panel (just slightly different brightness, shown static)
+    g.fillStyle(0xeaeaf0, 0.18); g.fillRect(700, 0, 80, 70);
+    g.lineStyle(2, C.ACCENT, 0.5); g.strokeRect(700, 0, 80, 70);
+
+    // wall division line
+    g.lineStyle(1, 0x40404a, 1);
+    g.beginPath(); g.moveTo(0, 380); g.lineTo(W, 380); g.strokePath();
+
+    // beds: 4 around, center-most still upright
+    const drawBed = (x, y, w, h, tilt, frame) => {
+      g.save();
+      const cx = x+w/2, cy = y+h/2;
+      g.translateCanvas ? null : null; // not phaser API; just rotate via points
+      const cos = Math.cos(tilt), sin = Math.sin(tilt);
+      const corners = [[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]];
+      const tp = corners.map(([dx,dy]) => [cx+dx*cos-dy*sin, cy+dx*sin+dy*cos]);
+      g.fillStyle(frame, 1);
+      g.beginPath();
+      g.moveTo(tp[0][0], tp[0][1]);
+      for (let i = 1; i < tp.length; i++) g.lineTo(tp[i][0], tp[i][1]);
+      g.closePath(); g.fillPath();
+      // mattress inset
+      const m = 6; const mc = corners.map(([dx,dy]) => [cx+(dx>0?dx-m:dx+m)*cos-(dy>0?dy-m:dy+m)*sin, cy+(dx>0?dx-m:dx+m)*sin+(dy>0?dy-m:dy+m)*cos]);
+      g.fillStyle(0x4a4a54, 1);
+      g.beginPath();
+      g.moveTo(mc[0][0], mc[0][1]);
+      for (let i = 1; i < mc.length; i++) g.lineTo(mc[i][0], mc[i][1]);
+      g.closePath(); g.fillPath();
+      g.lineStyle(1, 0x14141c, 1);
+      g.strokePath();
+      g.restore && g.restore();
+    };
+    // overturned beds left and right
+    drawBed(80, 410, 140, 60, -0.4, 0x3a3a44);
+    drawBed(740, 420, 140, 60, 0.45, 0x3a3a44);
+    drawBed(120, 530, 140, 60, 0.6, 0x3a3a44);
+    drawBed(720, 540, 140, 60, -0.5, 0x3a3a44);
+    // center bed upright
+    g.fillStyle(0x4a4a54, 1); g.fillRect(420, 350, 140, 70);
+    g.lineStyle(2, C.ACCENT, 0.5); g.strokeRect(420, 350, 140, 70);
+    // pillow
+    g.fillStyle(0x6a6a74, 1); g.fillRect(430, 358, 50, 30);
+    // small accent corner marks on center bed
+    g.lineStyle(2, C.ACCENT, 1);
+    g.beginPath(); g.moveTo(420, 360); g.lineTo(420, 350); g.lineTo(430, 350); g.strokePath();
+    g.beginPath(); g.moveTo(560, 410); g.lineTo(560, 420); g.lineTo(550, 420); g.strokePath();
+
+    // medicine cabinet right wall
+    g.fillStyle(0x1c1c26, 1); g.fillRect(740, 200, 90, 180);
+    g.lineStyle(2, C.ACCENT, 0.7); g.strokeRect(740, 200, 90, 180);
+    // open door
+    g.fillStyle(0x14141c, 1); g.fillRect(745, 205, 80, 170);
+    // shelves with empty slots
+    g.lineStyle(1, 0x3a3a44, 1);
+    [240, 280, 320, 360].forEach(y => {
+      g.beginPath(); g.moveTo(745, y); g.lineTo(825, y); g.strokePath();
+    });
+    // a few remaining bottles
+    g.fillStyle(C.ACCENT, 0.6); g.fillRect(755, 215, 8, 22);
+    g.fillStyle(0xb84a4a, 0.6); g.fillRect(810, 245, 8, 22);
+
+    // medicine on floor (scattered colored rects)
+    [
+      [220, 510, 0xb84a4a], [260, 530, C.ACCENT_D], [340, 540, 0xc4a01a],
+      [400, 525, 0xb84a4a], [180, 490, 0xc4a01a], [310, 500, C.ACCENT_D],
+      [380, 510, 0xb84a4a], [240, 545, 0xc4a01a]
+    ].forEach(([x, y, c]) => {
+      g.fillStyle(c, 0.9); g.fillRect(x, y, 14, 8);
+      g.lineStyle(1, 0x14141c, 1); g.strokeRect(x, y, 14, 8);
+    });
+
+    // door right side
+    g.fillStyle(0x1c1c26, 1); g.fillRect(870, 230, 60, 150);
+    g.lineStyle(2, C.ACCENT, 0.6); g.strokeRect(870, 230, 60, 150);
+    g.fillStyle(C.ACCENT, 0.8); g.fillCircle(920, 305, 4);
+
+    // wall scuff lines (no blood — clean)
+    g.lineStyle(1, 0x44444e, 0.7);
+    g.beginPath(); g.moveTo(20, 200); g.lineTo(140, 230); g.strokePath();
+    g.beginPath(); g.moveTo(40, 280); g.lineTo(120, 260); g.strokePath();
+
+    g.generateTexture('bg_infirmary', W, H);
+    g.destroy();
+  }
+
+  // ---- OFFICE
+  bakeOffice() {
+    const W = 960, H = 640;
+    const g = this.mg();
+    // walls
+    g.fillStyle(0x16161e, 1); g.fillRect(0, 0, W, 400);
+    // floor (warm wood-tone-ish)
+    g.fillStyle(0x1f1a18, 1); g.fillRect(0, 400, W, 240);
+    // wood floor planks
+    g.lineStyle(1, 0x14110f, 1);
+    for (let y = 410; y <= H; y += 22) {
+      g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.strokePath();
+    }
+    // wall trim line
+    g.lineStyle(2, C.ACCENT, 0.3);
+    g.beginPath(); g.moveTo(0, 400); g.lineTo(W, 400); g.strokePath();
+
+    // filing cabinets left side (2 cabinets)
+    const drawCab = (x, y) => {
+      g.fillStyle(0x1c1c26, 1); g.fillRect(x, y, 110, 200);
+      g.lineStyle(2, C.MUTE, 1); g.strokeRect(x, y, 110, 200);
+      // 4 drawers
+      for (let i = 0; i < 4; i++) {
+        const dy = y + 8 + i*48;
+        g.fillStyle(0x222230, 1); g.fillRect(x+6, dy, 98, 42);
+        g.lineStyle(1, 0x34343e, 1); g.strokeRect(x+6, dy, 98, 42);
+        // handle
+        g.fillStyle(C.ACCENT, 0.7); g.fillRect(x+45, dy+18, 20, 4);
+      }
+    };
+    drawCab(40, 180);
+    drawCab(155, 180);
+    // right cabinet
+    drawCab(820, 180);
+
+    // big desk center
+    const dx = 320, dy = 320, dw = 360, dh = 80;
+    g.fillStyle(0x2a221c, 1); g.fillRect(dx, dy, dw, dh);
+    g.lineStyle(2, C.ACCENT, 0.5); g.strokeRect(dx, dy, dw, dh);
+    // desk legs
+    g.fillStyle(0x1c1610, 1);
+    g.fillRect(dx, dy+dh, 14, 80);
+    g.fillRect(dx+dw-14, dy+dh, 14, 80);
+    // monitor on desk
+    g.fillStyle(0x0a0a0f, 1); g.fillRect(440, 230, 180, 110);
+    g.lineStyle(2, C.MUTE, 1); g.strokeRect(440, 230, 180, 110);
+    // monitor screen (blue glow loading)
+    g.fillStyle(0x1a3a5a, 1); g.fillRect(450, 240, 160, 90);
+    g.fillStyle(0x2a5a8a, 0.8); g.fillCircle(530, 285, 22);
+    g.fillStyle(0x14141c, 1); g.fillCircle(530, 285, 12);
+    g.lineStyle(2, 0x6ab8d8, 1); g.strokeCircle(530, 285, 18);
+    // monitor stand
+    g.fillStyle(0x1c1c26, 1); g.fillRect(520, 340, 20, 14);
+    g.fillRect(490, 354, 80, 6);
+    // blue glow halo behind monitor
+    g.fillStyle(0x4a8ab8, 0.08); g.fillRect(380, 200, 300, 180);
+    // flash drive on side of monitor
+    g.fillStyle(C.ACCENT, 1); g.fillRect(615, 270, 18, 8);
+
+    // call logs device - left of monitor
+    g.fillStyle(0x1c1c26, 1); g.fillRect(330, 290, 80, 50);
+    g.lineStyle(2, C.ACCENT, 0.7); g.strokeRect(330, 290, 80, 50);
+    // small screen
+    g.fillStyle(0x0a0a0f, 1); g.fillRect(338, 298, 64, 16);
+    g.fillStyle(C.ACCENT, 0.9); g.fillRect(342, 302, 28, 2);
+    g.fillRect(342, 308, 50, 2);
+    // buttons
+    for (let i = 0; i < 6; i++) {
+      g.fillStyle(C.MUTE, 1); g.fillRect(338+i*11, 322, 8, 10);
+    }
+
+    // motive notice - right of monitor
+    g.fillStyle(0xe8e0c8, 1); g.fillRect(640, 350, 80, 50);
+    g.lineStyle(1, C.MUTE, 1); g.strokeRect(640, 350, 80, 50);
+    g.lineStyle(1, 0x6a6464, 1);
+    [358, 364, 370, 376, 382, 388].forEach(y => {
+      g.beginPath(); g.moveTo(645, y); g.lineTo(715, y); g.strokePath();
+    });
+    g.lineStyle(2, C.ACCENT, 1);
+    g.beginPath(); g.moveTo(640, 350); g.lineTo(640, 360); g.strokePath();
+    g.beginPath(); g.moveTo(640, 350); g.lineTo(650, 350); g.strokePath();
+
+    // broken phone on desk
+    g.fillStyle(0x1a1a22, 1); g.fillRect(465, 405, 32, 56);
+    g.lineStyle(1, C.MUTE, 1); g.strokeRect(465, 405, 32, 56);
+    // crack lines
+    g.lineStyle(1, C.ACCENT, 0.7);
+    g.beginPath(); g.moveTo(467, 410); g.lineTo(495, 425); g.strokePath();
+    g.beginPath(); g.moveTo(495, 425); g.lineTo(469, 440); g.strokePath();
+    g.beginPath(); g.moveTo(469, 440); g.lineTo(496, 458); g.strokePath();
+
+    // handbook on left side
+    g.fillStyle(0x2a4a4a, 1); g.fillRect(180, 340, 60, 28);
+    g.lineStyle(1, C.ACCENT, 0.6); g.strokeRect(180, 340, 60, 28);
+    g.fillStyle(C.ACCENT, 0.8); g.fillRect(184, 346, 30, 3);
+    g.fillStyle(C.LIGHT, 0.7); g.fillRect(184, 352, 50, 2);
+    g.fillRect(184, 357, 50, 2);
+    g.fillRect(184, 362, 38, 2);
+
+    // warm lamp cone on desk
+    g.fillStyle(0xf0c878, 0.10);
+    g.fillTriangle(500, 200, 380, 400, 620, 400);
+    // lamp base
+    g.fillStyle(0x1c1c26, 1); g.fillRect(495, 195, 14, 8);
+    g.lineStyle(1, C.ACCENT, 0.9); g.strokeRect(495, 195, 14, 8);
+
+    // chair behind desk
+    g.fillStyle(0x16161e, 1); g.fillRect(485, 480, 50, 60);
+    g.lineStyle(1, C.MUTE, 1); g.strokeRect(485, 480, 50, 60);
+
+    // papers scattered on desk
+    [[345, 332, 30, 18], [405, 333, 22, 14], [675, 330, 30, 16]].forEach(([x,y,w,h]) => {
+      g.fillStyle(0xe8e0c8, 0.95); g.fillRect(x, y, w, h);
+      g.lineStyle(1, C.MUTE, 0.6); g.strokeRect(x, y, w, h);
+    });
+
+    g.generateTexture('bg_office', W, H);
+    g.destroy();
+  }
+
+  // ---- MORGUE
+  bakeMorgue() {
+    const W = 960, H = 640;
+    const g = this.mg();
+    // walls (cold grey)
+    g.fillStyle(0x1c1c26, 1); g.fillRect(0, 0, W, 380);
+    // floor (cold tile)
+    g.fillStyle(0x26262e, 1); g.fillRect(0, 380, W, 260);
+    // tile grid
+    g.lineStyle(1, 0x30303a, 1);
+    for (let x = 0; x <= W; x += 60) {
+      g.beginPath(); g.moveTo(x, 380); g.lineTo(x, H); g.strokePath();
+    }
+    for (let y = 380; y <= H; y += 30) {
+      g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.strokePath();
+    }
+    // overhead cold light cone
+    g.fillStyle(0xc8e0e4, 0.10);
+    g.fillTriangle(440, 0, 520, 0, 700, 380);
+    g.fillTriangle(440, 0, 520, 0, 260, 380);
+    // ceiling fixture
+    g.fillStyle(0x14141c, 1); g.fillRect(420, 0, 120, 14);
+    g.fillStyle(0xc8e0e4, 0.6); g.fillRect(425, 8, 110, 4);
+
+    // cooler doors back wall — grid of squares
+    const sx = 70, sy = 100, dw = 90, dh = 90, gap = 8;
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 8; col++) {
+        const x = sx + col*(dw+gap);
+        const y = sy + row*(dh+gap);
+        const open = (col % 2 === 0) || (col === 5);
+        g.fillStyle(0x2a2a34, 1); g.fillRect(x, y, dw, dh);
+        g.lineStyle(2, open ? C.ACCENT : C.MUTE, open ? 1 : 0.7);
+        g.strokeRect(x, y, dw, dh);
+        // inner door panel
+        g.fillStyle(open ? 0x14141c : 0x1c1c26, 1);
+        g.fillRect(x+8, y+8, dw-16, dh-16);
+        // handle
+        g.fillStyle(C.LIGHT, 0.7); g.fillRect(x+dw-22, y+dh/2-3, 12, 6);
+        // open ones show pulled-out tray (small stripe)
+        if (open) {
+          g.fillStyle(C.ACCENT, 0.4);
+          g.fillRect(x+12, y+dh-22, dw-24, 8);
+          // empty label
+          g.lineStyle(1, C.ACCENT, 0.6);
+          g.beginPath(); g.moveTo(x+14, y+12); g.lineTo(x+34, y+12); g.strokePath();
+        }
+        // small cooler number tag
+        g.fillStyle(C.MUTE, 0.6); g.fillRect(x+10, y+10, 14, 4);
+      }
+    }
+
+    // gurney center
+    g.fillStyle(0x3a3a44, 1); g.fillRect(395, 440, 170, 50);
+    g.lineStyle(2, C.ACCENT, 0.7); g.strokeRect(395, 440, 170, 50);
+    // gurney legs
+    g.fillStyle(0x14141c, 1);
+    g.fillRect(400, 490, 8, 50); g.fillRect(556, 490, 8, 50);
+    // wheels
+    g.fillCircle(404, 545, 8); g.fillCircle(560, 545, 8);
+    // stained marks on gurney top
+    g.fillStyle(C.MUTE, 0.4);
+    g.fillRect(420, 452, 30, 12); g.fillRect(470, 458, 25, 10);
+
+    // storage log on right wall
+    g.fillStyle(0x1c1c26, 1); g.fillRect(700, 440, 80, 60);
+    g.lineStyle(2, C.ACCENT, 0.7); g.strokeRect(700, 440, 80, 60);
+    g.lineStyle(1, C.MUTE, 1);
+    [450, 458, 466, 474, 482, 490].forEach(y => {
+      g.beginPath(); g.moveTo(706, y); g.lineTo(774, y); g.strokePath();
+    });
+
+    // autopsy area top-right (table + tools)
+    g.fillStyle(0x222230, 1); g.fillRect(700, 240, 200, 80);
+    g.lineStyle(2, C.ACCENT, 0.6); g.strokeRect(700, 240, 200, 80);
+    // tools row
+    [720, 740, 760, 780, 800].forEach(x => {
+      g.fillStyle(C.LIGHT, 0.8); g.fillRect(x, 252, 4, 22);
+    });
+    // empty body chalk outline
+    g.lineStyle(2, C.ACCENT, 0.4);
+    g.strokeRect(720, 285, 160, 28);
+
+    g.generateTexture('bg_morgue', W, H);
+    g.destroy();
+  }
+
+}
+
+// =========================================================
+// INTROSCENE — five styled cutscene panels
+// =========================================================
+class IntroScene extends Phaser.Scene {
+  constructor() { super('IntroScene'); }
+
+  create() {
+    // initial gameState
+    this.registry.set('gameState', {
+      currentRoom: 'gatehouse',
+      collectedEvidence: [],
+      visitedRooms: [],
+      suspectsTalked: [],
+      pins: {},
+      contradictionsTriggered: [],
+      gamePhase: 'intro'
+    });
+
+    this.cameras.main.setBackgroundColor('#0a0a0f');
+    drawCanvasFrame(this);
+
+    this.panelIndex = 0;
+    this.advancing = false;
+    this.layer = this.add.container(0, 0);
+
+    this.input.keyboard.on('keydown-SPACE', () => this.advance());
+    this.input.on('pointerdown', () => this.advance());
+
+    this.showPanel();
+  }
+
+  clearLayer() {
+    this.layer.removeAll(true);
+  }
+
+  showPanel() {
+    this.clearLayer();
+    const idx = this.panelIndex;
+
+    // backgrounds for some panels
+    if (idx === 1 || idx === 3) {
+      const bg = this.add.image(480, 320, 'bg_gatehouse').setAlpha(0.55);
+      this.layer.add(bg);
+      // dark tint
+      const tint = this.add.rectangle(480, 320, 960, 640, 0x0a0a0f, 0.55);
+      this.layer.add(tint);
+    }
+
+    // outer panel border (target reticle look)
+    const px = 80, py = 100, pw = 800, ph = 440;
+    const pBg = this.add.rectangle(px, py, pw, ph, 0x14141c, idx === 4 ? 1 : 0.92).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    this.layer.add(pBg);
+    this.layer.add(drawAllCornerMarks(this, px, py, pw, ph, C.ACCENT, 18));
+
+    // top label strip
+    const stripText = `[ FILE ${String(idx+1).padStart(2,'0')} / 05 ]   ·   PROJECT REVIVAL`;
+    const strip = this.add.text(px+18, py+14, stripText, {
+      fontFamily: F.MONO, fontSize:'12px', color:C.MUTE_S, letterSpacing:2
+    });
+    this.layer.add(strip);
+    // accent under strip
+    const stripLine = this.add.rectangle(px+18, py+34, pw-36, 1, C.ACCENT).setOrigin(0,0);
+    this.layer.add(stripLine);
+
+    // panel content
+    if (idx === 0) {
+      this.layer.add(this.add.text(480, 240, 'ANOTHER DEATH.', {
+        fontFamily: F.UI, fontSize:'56px', fontStyle:'700', color:C.LIGHT_S
+      }).setOrigin(0.5));
+      this.layer.add(this.add.rectangle(480, 290, 220, 2, C.ACCENT).setOrigin(0.5));
+      this.layer.add(this.add.text(480, 340, 'Another case with no clean answers.', {
+        fontFamily: F.MONO, fontSize:'18px', color:C.MUTE_S
+      }).setOrigin(0.5));
+    }
+    else if (idx === 1) {
+      this.layer.add(this.add.text(480, 240, 'THE BODY IS GONE.', {
+        fontFamily: F.UI, fontSize:'46px', fontStyle:'700', color:C.LIGHT_S
+      }).setOrigin(0.5));
+      this.layer.add(this.add.rectangle(480, 285, 200, 2, C.ACCENT).setOrigin(0.5));
+      const lines = [
+        '> the infirmary is trashed.',
+        '> nobody saw anything useful.',
+        '> ...right.'
+      ];
+      lines.forEach((t, i) => {
+        this.layer.add(this.add.text(280, 320 + i*32, t, {
+          fontFamily: F.MONO, fontSize:'18px', color: i === 2 ? C.ACCENT_S : C.LIGHT_S
+        }));
+      });
+    }
+    else if (idx === 2) {
+      // protagonist portrait visible
+      const port = this.add.image(220, 320, 'portrait_protagonist').setOrigin(0.5).setDisplaySize(160, 200);
+      this.layer.add(port);
+      // border around portrait
+      this.layer.add(this.add.rectangle(220, 320, 162, 202, 0x000000, 0).setOrigin(0.5).setStrokeStyle(2, C.ACCENT));
+      this.layer.add(drawAllCornerMarks(this, 139, 219, 162, 202, C.ACCENT, 12));
+
+      this.layer.add(this.add.text(340, 220, 'My name does not matter right now.', {
+        fontFamily: F.MONO, fontSize:'17px', color:C.LIGHT_S, fontStyle:'italic'
+      }));
+      this.layer.add(this.add.text(340, 270, 'Ace Johnson is dead.', {
+        fontFamily: F.MONO, fontSize:'17px', color:C.LIGHT_S, fontStyle:'italic'
+      }));
+      this.layer.add(this.add.text(340, 320, 'Someone in this prison knows', {
+        fontFamily: F.MONO, fontSize:'17px', color:C.LIGHT_S, fontStyle:'italic'
+      }));
+      this.layer.add(this.add.text(340, 348, 'exactly why.', {
+        fontFamily: F.MONO, fontSize:'17px', color:C.ACCENT_S, fontStyle:'italic'
+      }));
+    }
+    else if (idx === 3) {
+      this.layer.add(this.add.text(480, 240, 'LAST KNOWN LOCATION', {
+        fontFamily: F.UI, fontSize:'30px', fontStyle:'700', color:C.MUTE_S, letterSpacing:4
+      }).setOrigin(0.5));
+      this.layer.add(this.add.text(480, 290, 'THE GATEHOUSE.', {
+        fontFamily: F.UI, fontSize:'56px', fontStyle:'700', color:C.ACCENT_S
+      }).setOrigin(0.5));
+      this.layer.add(this.add.rectangle(480, 330, 280, 2, C.ACCENT).setOrigin(0.5));
+      this.layer.add(this.add.text(480, 370, 'That is where I start.', {
+        fontFamily: F.MONO, fontSize:'18px', color:C.LIGHT_S, fontStyle:'italic'
+      }).setOrigin(0.5));
+    }
+    else if (idx === 4) {
+      // title card
+      this.layer.add(this.add.text(480, 200, 'PROJECT REVIVAL', {
+        fontFamily: F.UI, fontSize:'72px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:6
+      }).setOrigin(0.5));
+      this.layer.add(this.add.rectangle(480, 250, 360, 2, C.ACCENT).setOrigin(0.5));
+      this.layer.add(this.add.text(480, 290, 'CASE FILE — THE DEATH OF ACE JOHNSON', {
+        fontFamily: F.MONO, fontSize:'15px', color:C.MUTE_S, letterSpacing:2
+      }).setOrigin(0.5));
+      const btn = makeButton(this, 340, 380, 280, 56, '[ BEGIN INVESTIGATION ]', {
+        fontSize: 18,
+        onClick: () => { this.scene.start('GameScene'); }
+      });
+      this.layer.add(btn);
+      // disable global click handler advance for last panel
+      this.lastPanel = true;
+    }
+
+    // continue indicator (except last panel)
+    if (idx < 4) {
+      const cont = this.add.text(px+pw-180, py+ph-30, '[ CLICK OR SPACE TO CONTINUE ▶ ]', {
+        fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:2
+      });
+      this.layer.add(cont);
+      this.tweens.add({ targets: cont, alpha: { from: 1, to: 0.35 }, duration: 700, yoyo:true, repeat:-1 });
+    }
+
+    // fade in
+    this.cameras.main.fadeIn(300, 10, 10, 15);
+  }
+
+  advance() {
+    if (this.advancing || this.lastPanel) return;
+    this.advancing = true;
+    this.cameras.main.fadeOut(220, 10, 10, 15);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.panelIndex++;
+      if (this.panelIndex > 4) {
+        this.scene.start('GameScene');
+        return;
+      }
+      this.advancing = false;
+      this.lastPanel = (this.panelIndex === 4);
+      this.showPanel();
+    });
+  }
+}
+
+// =========================================================
+// GAMESCENE — main investigation loop
+// =========================================================
+class GameScene extends Phaser.Scene {
+  constructor() { super('GameScene'); }
+
+  create() {
+    this.gs = this.registry.get('gameState');
+    this.gs.gamePhase = 'investigation';
+    if (!this.gs.visitedRooms.includes(this.gs.currentRoom)) {
+      this.gs.visitedRooms.push(this.gs.currentRoom);
+    }
+
+    this.cameras.main.setBackgroundColor('#0a0a0f');
+
+    // === LAYERS ===
+    this.bgLayer       = this.add.container(0, 0).setDepth(0);
+    this.roomLayer     = this.add.container(0, 0).setDepth(10);   // hotspots, NPCs
+    this.uiBackLayer   = this.add.container(0, 0).setDepth(40);   // header strip
+    this.cardsLayer    = this.add.container(0, 0).setDepth(50);
+    this.navLayer      = this.add.container(0, 0).setDepth(60);
+    this.hintBtnLayer  = this.add.container(0, 0).setDepth(70);
+    this.dialogueLayer = this.add.container(0, 0).setDepth(100).setVisible(false);
+    this.suspectLayer  = this.add.container(0, 0).setDepth(200).setVisible(false);
+    this.hintLayer     = this.add.container(0, 0).setDepth(300).setVisible(false);
+    this.logsLayer     = this.add.container(0, 0).setDepth(400).setVisible(false);
+    this.contraLayer   = this.add.container(0, 0).setDepth(500).setVisible(false);
+
+    // canvas frame ALWAYS on top
+    drawCanvasFrame(this);
+
+    // header strip (top of canvas)
+    this.buildHeader();
+
+    // build static UI
+    this.buildFilterButtons();
+    this.buildEvidenceRow();
+    this.buildNavBar();
+    this.buildHintButton();
+    this.buildDialoguePanel();
+
+    // load current room
+    this.loadRoom(this.gs.currentRoom);
+
+    this.refreshEvidenceCards();
+    this.refreshNavBar();
+
+    // keyboard
+    this.input.keyboard.on('keydown-SPACE', () => {
+      if (this.dialogueActive) this.advanceDialogue();
+    });
+    this.input.keyboard.on('keydown-ESC', () => {
+      if (this.suspectLayer.visible) this.toggleSuspectBoard(false);
+      else if (this.hintLayer.visible) this.toggleHintPanel(false);
+      else if (this.logsLayer.visible) this.toggleLogs(false);
+    });
+  }
+
+  // ============================================
+  // HEADER (top strip with room name + status)
+  // ============================================
+  buildHeader() {
+    const h = 38;
+    const bg = this.add.rectangle(0, 0, 960, h, C.BG_PANEL, 1).setOrigin(0,0);
+    const line = this.add.rectangle(0, h, 960, 1, C.ACCENT).setOrigin(0,0);
+    this.uiBackLayer.add([bg, line]);
+    this.headerLabel = this.add.text(20, 12, '', {
+      fontFamily: F.UI, fontSize:'15px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4
+    });
+    this.headerSub = this.add.text(20, 28, '', {
+      fontFamily: F.MONO, fontSize:'9px', color:C.MUTE_S, letterSpacing:2
+    });
+    this.headerStatus = this.add.text(940, 14, '', {
+      fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(1, 0);
+    this.uiBackLayer.add([this.headerLabel, this.headerSub, this.headerStatus]);
+  }
+
+  refreshHeader() {
+    const room = this.gs.currentRoom;
+    this.headerLabel.setText(`// ${ROOM_NAMES[room]}`);
+    this.headerSub.setText(`zone ${ROOM_KEYS.indexOf(room)+1} / 04   ·   ace johnson investigation`);
+    const ev = this.gs.collectedEvidence.length;
+    const cn = this.gs.contradictionsTriggered.length;
+    this.headerStatus.setText(`EVIDENCE ${String(ev).padStart(2,'0')}/16   ·   CONTRADICTIONS ${cn}/05`);
+  }
+
+  // ============================================
+  // ROOM LOAD
+  // ============================================
+  loadRoom(room) {
+    this.gs.currentRoom = room;
+    if (!this.gs.visitedRooms.includes(room)) this.gs.visitedRooms.push(room);
+
+    // clear bg + room layer
+    this.bgLayer.removeAll(true);
+    this.roomLayer.removeAll(true);
+
+    // background image
+    const bg = this.add.image(480, 320, 'bg_' + room);
+    this.bgLayer.add(bg);
+
+    // optional: dim overlay near bottom for UI legibility
+    const dim = this.add.rectangle(0, 360, 960, 280, 0x000000, 0.18).setOrigin(0,0);
+    this.bgLayer.add(dim);
+
+    // flicker animation on infirmary
+    if (room === 'infirmary') {
+      const flick = this.add.rectangle(700, 0, 80, 70, 0xeaeaf0, 0.20).setOrigin(0,0);
+      this.bgLayer.add(flick);
+      this.tweens.add({ targets: flick, alpha:{from:0.05, to:0.32}, duration:140, yoyo:true, repeat:-1, ease:'Stepped' });
+    }
+
+    // build hotspots
+    HOTSPOTS[room].forEach(h => this.makeHotspot(h));
+    // build NPCs
+    (NPCS[room] || []).forEach(n => this.makeNPC(n));
+
+    this.refreshHeader();
+    this.refreshNavBar();
+
+    // camera flash on room enter
+    this.cameras.main.flash(180, 0, 245, 212);
+  }
+
+  // ============================================
+  // HOTSPOTS — diamond + bracket crosshair
+  // ============================================
+  makeHotspot(h) {
+    const collected = h.collect && this.gs.collectedEvidence.includes(h.collect);
+    const cont = this.add.container(h.x, h.y);
+    cont.hsId = h.id;
+
+    // bracket crosshair (4 corner segments)
+    const br = this.add.graphics();
+    br.lineStyle(1.5, C.ACCENT, 1);
+    const r = 22;
+    [[-r,-r,1,1],[r,-r,-1,1],[-r,r,1,-1],[r,r,-1,-1]].forEach(([x,y,sx,sy]) => {
+      br.beginPath();
+      br.moveTo(x, y);
+      br.lineTo(x + 8*sx, y);
+      br.moveTo(x, y);
+      br.lineTo(x, y + 8*sy);
+      br.strokePath();
+    });
+    cont.add(br);
+
+    // diamond
+    const dia = this.add.graphics();
+    if (collected) {
+      dia.fillStyle(C.ACCENT_D, 0.7);
+      dia.lineStyle(1.5, C.ACCENT, 0.7);
+    } else {
+      dia.fillStyle(C.ACCENT, 1);
+      dia.lineStyle(1.5, C.LIGHT, 1);
+    }
+    dia.beginPath();
+    dia.moveTo(0, -8); dia.lineTo(8, 0); dia.lineTo(0, 8); dia.lineTo(-8, 0);
+    dia.closePath(); dia.fillPath(); dia.strokePath();
+    cont.add(dia);
+
+    // label below the bracket — small mono text
+    const lbl = this.add.text(0, 28, h.label, {
+      fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:1.5
+    }).setOrigin(0.5).setAlpha(0);
+    cont.add(lbl);
+
+    // hit zone
+    const hit = this.add.rectangle(0, 0, 56, 56, 0x000000, 0).setInteractive({ useHandCursor:true });
+    cont.add(hit);
+
+    hit.on('pointerover', () => {
+      lbl.setAlpha(1);
+      this.tweens.add({ targets: dia, scale:1.4, duration:120 });
+    });
+    hit.on('pointerout', () => {
+      lbl.setAlpha(0);
+      this.tweens.add({ targets: dia, scale:1.0, duration:120 });
+    });
+    hit.on('pointerdown', () => this.triggerHotspot(h));
+
+    // alpha pulse
+    this.tweens.add({ targets: [dia, br], alpha:{ from:0.6, to:1.0 }, duration:900, yoyo:true, repeat:-1 });
+
+    this.roomLayer.add(cont);
+  }
+
+  // ============================================
+  // NPC FIGURES
+  // ============================================
+  makeNPC(n) {
+    const cont = this.add.container(n.x, n.y);
+    // shadow disc
+    const sh = this.add.ellipse(0, 70, 70, 14, 0x000000, 0.5);
+    cont.add(sh);
+    // body trapezoid
+    const body = this.add.graphics();
+    body.fillStyle(n.color, 1);
+    body.beginPath();
+    body.moveTo(-22, 60); body.lineTo(-14, 0); body.lineTo(14, 0); body.lineTo(22, 60);
+    body.closePath(); body.fillPath();
+    body.lineStyle(2, 0x0a0a0f, 1); body.strokePath();
+    cont.add(body);
+    // head
+    const head = this.add.circle(0, -14, 14, 0xd4cfe0).setStrokeStyle(2, 0x0a0a0f);
+    if (n.id === 'zuri') head.setFillStyle(0x8b5e3c);
+    else if (n.id === 'roy') head.setFillStyle(0xc49a6c);
+    else if (n.id === 'gael') head.setFillStyle(0xa08060);
+    cont.add(head);
+    // floating name tag
+    const nameBg = this.add.rectangle(0, -50, 80, 18, C.BG_PANEL, 0.92).setStrokeStyle(1, C.ACCENT);
+    const nameTxt = this.add.text(0, -50, n.name, {
+      fontFamily: F.UI, fontSize:'11px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:2
+    }).setOrigin(0.5);
+    cont.add([nameBg, nameTxt]);
+    // talk indicator dot
+    const dot = this.add.circle(34, -36, 4, C.ACCENT);
+    cont.add(dot);
+    this.tweens.add({ targets: dot, alpha:{from:0.4,to:1}, duration:700, yoyo:true, repeat:-1 });
+
+    // hit area
+    const hit = this.add.rectangle(0, 20, 80, 100, 0x000000, 0).setInteractive({ useHandCursor:true });
+    cont.add(hit);
+    hit.on('pointerover', () => {
+      this.tweens.add({ targets: cont, y: n.y - 4, duration: 140 });
+    });
+    hit.on('pointerout', () => {
+      this.tweens.add({ targets: cont, y: n.y, duration: 140 });
+    });
+    hit.on('pointerdown', () => this.triggerNPC(n));
+
+    this.roomLayer.add(cont);
+  }
+
+  // ============================================
+  // FILTER BUTTONS + EVIDENCE ROW
+  // ============================================
+  buildFilterButtons() {
+    this.filter = 'ALL';
+    const labels = ['ALL', 'PHYSICAL', 'TESTIMONY', 'DOCUMENT'];
+    this.filterBtns = {};
+    let x = 14;
+    labels.forEach(l => {
+      const w = (l === 'ALL') ? 60 : 100;
+      const btn = this.add.container(x, 50);
+      const bg = this.add.rectangle(0, 0, w, 22, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, C.MUTE);
+      const txt = this.add.text(w/2, 11, l, {
+        fontFamily: F.UI, fontSize:'11px', fontStyle:'700', color:C.MUTE_S, letterSpacing:2
+      }).setOrigin(0.5);
+      btn.add([bg, txt]);
+      bg.setInteractive({ useHandCursor:true });
+      bg.on('pointerover', () => { if (this.filter !== l) bg.setStrokeStyle(1, C.ACCENT); });
+      bg.on('pointerout',  () => { if (this.filter !== l) bg.setStrokeStyle(1, C.MUTE); });
+      bg.on('pointerdown', () => { this.filter = l; this.refreshEvidenceCards(); });
+      this.filterBtns[l] = { bg, txt };
+      this.cardsLayer.add(btn);
+      x += w + 6;
+    });
+
+    // section label "EVIDENCE LOCKER"
+    this.add && this.add.text(580, 56, '// EVIDENCE LOCKER', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(0,0).setDepth(50).setName('evlbl');
+    this.evCount = this.add.text(940, 56, '00 / 16', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:2
+    }).setOrigin(1,0).setDepth(50);
+    this.cardsLayer.add(this.evCount);
+  }
+
+  buildEvidenceRow() {
+    // background strip behind cards row
+    const stripY = 80;
+    const stripBg = this.add.rectangle(10, stripY, 940, 70, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, 0x2a2a36);
+    const stripTop = this.add.rectangle(10, stripY, 940, 1, C.ACCENT, 0.5).setOrigin(0,0);
+    this.cardsLayer.add([stripBg, stripTop]);
+
+    // scroll arrows
+    this.cardScroll = 0;
+    const leftBtn = this.add.container(10, stripY+22);
+    const lbg = this.add.rectangle(0, 0, 22, 26, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, C.ACCENT);
+    const ltx = this.add.text(11, 13, '◀', { fontFamily:F.MONO, fontSize:'12px', color:C.ACCENT_S }).setOrigin(0.5);
+    leftBtn.add([lbg, ltx]);
+    lbg.setInteractive({ useHandCursor:true });
+    lbg.on('pointerdown', () => { this.cardScroll = Math.max(0, this.cardScroll - 1); this.refreshEvidenceCards(); });
+    lbg.on('pointerover', () => { lbg.setFillStyle(C.ACCENT); ltx.setColor(C.BG_DEEP_S); });
+    lbg.on('pointerout',  () => { lbg.setFillStyle(C.BG_PANEL); ltx.setColor(C.ACCENT_S); });
+    this.cardsLayer.add(leftBtn);
+
+    const rightBtn = this.add.container(928, stripY+22);
+    const rbg = this.add.rectangle(0, 0, 22, 26, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, C.ACCENT);
+    const rtx = this.add.text(11, 13, '▶', { fontFamily:F.MONO, fontSize:'12px', color:C.ACCENT_S }).setOrigin(0.5);
+    rightBtn.add([rbg, rtx]);
+    rbg.setInteractive({ useHandCursor:true });
+    rbg.on('pointerdown', () => { this.cardScroll = this.cardScroll + 1; this.refreshEvidenceCards(); });
+    rbg.on('pointerover', () => { rbg.setFillStyle(C.ACCENT); rtx.setColor(C.BG_DEEP_S); });
+    rbg.on('pointerout',  () => { rbg.setFillStyle(C.BG_PANEL); rtx.setColor(C.ACCENT_S); });
+    this.cardsLayer.add(rightBtn);
+
+    // empty state text
+    this.emptyText = this.add.text(480, stripY+34, '// NO EVIDENCE COLLECTED · INTERACT WITH HOTSPOTS', {
+      fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(0.5);
+    this.cardsLayer.add(this.emptyText);
+
+    // container for cards
+    this.cardsHolder = this.add.container(38, stripY+5);
+    this.cardsLayer.add(this.cardsHolder);
+  }
+
+  refreshEvidenceCards() {
+    // update filter button visuals
+    Object.keys(this.filterBtns).forEach(k => {
+      const o = this.filterBtns[k];
+      if (k === this.filter) {
+        o.bg.setFillStyle(C.ACCENT, 1).setStrokeStyle(1, C.ACCENT);
+        o.txt.setColor(C.BG_DEEP_S);
+      } else {
+        o.bg.setFillStyle(C.BG_PANEL, 1).setStrokeStyle(1, C.MUTE);
+        o.txt.setColor(C.MUTE_S);
+      }
+    });
+
+    // filter evidence
+    const evs = this.gs.collectedEvidence.filter(id => {
+      if (this.filter === 'ALL') return true;
+      return EVIDENCE_META[id] && EVIDENCE_META[id].type === this.filter;
+    });
+
+    this.evCount.setText(`${String(this.gs.collectedEvidence.length).padStart(2,'0')} / 16`);
+    this.emptyText.setVisible(evs.length === 0);
+
+    // clear holder
+    this.cardsHolder.removeAll(true);
+
+    const cardW = 138, cardH = 60, gap = 8;
+    const visible = 6;
+    const maxScroll = Math.max(0, evs.length - visible);
+    if (this.cardScroll > maxScroll) this.cardScroll = maxScroll;
+
+    for (let i = 0; i < visible; i++) {
+      const idx = i + this.cardScroll;
+      if (idx >= evs.length) break;
+      const id = evs[idx];
+      const meta = EVIDENCE_META[id];
+      const x = i * (cardW + gap);
+
+      const card = this.add.container(x, 0);
+      const bg = this.add.rectangle(0, 0, cardW, cardH, C.BG_PANEL2, 1).setOrigin(0,0).setStrokeStyle(1, C.MUTE);
+      // left accent stripe
+      const stripe = this.add.rectangle(0, 0, 3, cardH, C.ACCENT, 1).setOrigin(0,0);
+      // type tag
+      const tagColor = meta.type === 'PHYSICAL' ? C.ACCENT : (meta.type === 'TESTIMONY' ? 0xc49a2a : 0x8aa6c8);
+      const tagBg = this.add.rectangle(cardW-50, 6, 44, 12, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, tagColor);
+      const tagTx = this.add.text(cardW-28, 12, meta.type.slice(0,3), {
+        fontFamily: F.MONO, fontSize:'8px', color:'#'+tagColor.toString(16).padStart(6,'0'), letterSpacing:1
+      }).setOrigin(0.5);
+      // title
+      const title = this.add.text(10, 14, id.length > 18 ? id.slice(0,17)+'…' : id, {
+        fontFamily: F.UI, fontSize:'12px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:1
+      });
+      // room small label
+      const room = this.add.text(10, 30, '> ' + meta.room, {
+        fontFamily: F.MONO, fontSize:'9px', color:C.MUTE_S, letterSpacing:1
+      });
+      // bottom tag bar
+      const bottomBar = this.add.rectangle(10, cardH-15, cardW-20, 1, 0x2a2a36).setOrigin(0,0);
+      const bottomTag = this.add.text(10, cardH-12, '· COLLECTED', {
+        fontFamily: F.MONO, fontSize:'8px', color:C.ACCENT_S, letterSpacing:1
+      });
+
+      card.add([bg, stripe, tagBg, tagTx, title, room, bottomBar, bottomTag]);
+
+      // bounce if newly added
+      if (id === this._newestEvidence) {
+        card.setScale(0.6); card.setAlpha(0);
+        this.tweens.add({ targets: card, scale:1, alpha:1, duration:380, ease:'Back.Out' });
+      }
+
+      this.cardsHolder.add(card);
+    }
+    this._newestEvidence = null;
+    this.refreshHeader();
+  }
+
+  // ============================================
+  // NAV BAR
+  // ============================================
+  buildNavBar() {
+    const navY = 590, navH = 50;
+    // bg
+    const bg = this.add.rectangle(0, navY, 960, navH, C.BG_PANEL, 1).setOrigin(0,0);
+    const top = this.add.rectangle(0, navY, 960, 2, C.ACCENT).setOrigin(0,0);
+    this.navLayer.add([bg, top]);
+
+    // tabs
+    this.navTabs = {};
+    const tabW = 120;
+    ROOM_KEYS.forEach((k, i) => {
+      const x = i * tabW;
+      const tab = this.add.container(x, navY);
+      const tBg = this.add.rectangle(0, 2, tabW, navH-2, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, 0x2a2a36);
+      const tTx = this.add.text(tabW/2, navH/2 + 2, ROOM_NAMES[k].replace('THE ','').replace("LIAM'S ",''), {
+        fontFamily: F.UI, fontSize:'13px', fontStyle:'700', color:C.MUTE_S, letterSpacing:3
+      }).setOrigin(0.5);
+      // tiny dot for visited indicator
+      const dot = this.add.circle(10, 12, 3, C.ACCENT).setVisible(false);
+      tab.add([tBg, tTx, dot]);
+      tBg.setInteractive({ useHandCursor:true });
+      tBg.on('pointerdown', () => {
+        if (this.dialogueActive) return;
+        if (this.gs.currentRoom === k) return;
+        this.transitionToRoom(k);
+      });
+      tBg.on('pointerover', () => { if (this.gs.currentRoom !== k) tBg.setStrokeStyle(1, C.ACCENT); });
+      tBg.on('pointerout',  () => { if (this.gs.currentRoom !== k) tBg.setStrokeStyle(1, 0x2a2a36); });
+      this.navTabs[k] = { bg:tBg, txt:tTx, dot };
+      this.navLayer.add(tab);
+    });
+
+    // SUSPECTS button
+    const sx = 4 * tabW;
+    const sCont = this.add.container(sx, navY);
+    const sBg = this.add.rectangle(0, 2, 130, navH-2, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, C.ACCENT);
+    const sTx = this.add.text(65, navH/2 + 2, 'SUSPECTS', {
+      fontFamily: F.UI, fontSize:'13px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:3
+    }).setOrigin(0.5);
+    sCont.add([sBg, sTx]);
+    sBg.setInteractive({ useHandCursor:true });
+    sBg.on('pointerover', () => { sBg.setFillStyle(C.ACCENT); sTx.setColor(C.BG_DEEP_S); });
+    sBg.on('pointerout',  () => { sBg.setFillStyle(C.BG_PANEL); sTx.setColor(C.ACCENT_S); });
+    sBg.on('pointerdown', () => { if (!this.dialogueActive) this.toggleSuspectBoard(true); });
+    this.navLayer.add(sCont);
+
+    // MAKE ACCUSATION button (hidden until 4 visited)
+    const ax = 4 * tabW + 130;
+    this.accuseCont = this.add.container(ax, navY);
+    const aBg = this.add.rectangle(0, 2, 350, navH-2, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    const aTx = this.add.text(175, navH/2 + 2, '▶ MAKE ACCUSATION', {
+      fontFamily: F.UI, fontSize:'15px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4
+    }).setOrigin(0.5);
+    this.accuseCont.add([aBg, aTx]);
+    aBg.setInteractive({ useHandCursor:true });
+    aBg.on('pointerover', () => { aBg.setFillStyle(C.ACCENT); aTx.setColor(C.BG_DEEP_S); });
+    aBg.on('pointerout',  () => { aBg.setFillStyle(C.BG_PANEL); aTx.setColor(C.ACCENT_S); });
+    aBg.on('pointerdown', () => {
+      if (this.dialogueActive) return;
+      if (this.gs.visitedRooms.length < 4) return;
+      this.scene.start('AccusationScene');
+    });
+    this.accuseCont.setVisible(false);
+    this.navLayer.add(this.accuseCont);
+    // placeholder where accusation will go
+    this.accuseEmpty = this.add.rectangle(ax, navY+2, 350, navH-2, C.BG_PANEL, 1).setOrigin(0,0);
+    const aeTx = this.add.text(ax + 175, navY + navH/2 + 2, '// ACCUSATION LOCKED — VISIT ALL ROOMS', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(0.5);
+    this.navLayer.add([this.accuseEmpty, aeTx]);
+    this.accuseEmptyTxt = aeTx;
+  }
+
+  refreshNavBar() {
+    Object.keys(this.navTabs).forEach(k => {
+      const o = this.navTabs[k];
+      const isCurrent = (this.gs.currentRoom === k);
+      const visited = this.gs.visitedRooms.includes(k);
+      if (isCurrent) {
+        o.bg.setFillStyle(C.ACCENT, 1).setStrokeStyle(1, C.ACCENT);
+        o.txt.setColor(C.BG_DEEP_S);
+      } else {
+        o.bg.setFillStyle(C.BG_PANEL, 1).setStrokeStyle(1, 0x2a2a36);
+        o.txt.setColor(visited ? C.LIGHT_S : C.MUTE_S);
+      }
+      o.dot.setVisible(visited && !isCurrent);
+    });
+    const ready = this.gs.visitedRooms.length >= 4;
+    this.accuseCont.setVisible(ready);
+    this.accuseEmpty.setVisible(!ready);
+    this.accuseEmptyTxt.setVisible(!ready);
+  }
+
+  transitionToRoom(room) {
+    this.cameras.main.fadeOut(180, 10, 10, 15);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.loadRoom(room);
+      this.cameras.main.fadeIn(220, 10, 10, 15);
+    });
+  }
+
+  // ============================================
+  // HINT BUTTON
+  // ============================================
+  buildHintButton() {
+    const hb = this.add.container(910, 600);
+    const bg = this.add.rectangle(0, 0, 40, 30, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    const tx = this.add.text(20, 15, '?', {
+      fontFamily: F.UI, fontSize:'18px', fontStyle:'700', color:C.ACCENT_S
+    }).setOrigin(0.5);
+    hb.add([bg, tx]);
+    bg.setInteractive({ useHandCursor:true });
+    bg.on('pointerover', () => { bg.setFillStyle(C.ACCENT); tx.setColor(C.BG_DEEP_S); });
+    bg.on('pointerout',  () => { bg.setFillStyle(C.BG_PANEL); tx.setColor(C.ACCENT_S); });
+    bg.on('pointerdown', () => {
+      if (this.dialogueActive) return;
+      this.toggleHintPanel(!this.hintLayer.visible);
+    });
+    this.hintBtnLayer.add(hb);
+  }
+
+  // ============================================
+  // DIALOGUE PANEL — terminal/briefing aesthetic
+  // ============================================
+  buildDialoguePanel() {
+    const x = 0, y = 450, w = 960, h = 190;
+    // backing
+    const bg = this.add.rectangle(x, y, w, h, 0x0d0d1a, 1).setOrigin(0,0);
+    // top border
+    const topLine = this.add.rectangle(x, y, w, 2, C.ACCENT).setOrigin(0,0);
+    this.dialogueLayer.add([bg, topLine]);
+    // L corners (top-left + top-right)
+    const cg = this.add.graphics();
+    cg.lineStyle(2, C.ACCENT, 1);
+    const cl = 14;
+    // TL
+    cg.beginPath(); cg.moveTo(8, y+8+cl); cg.lineTo(8, y+8); cg.lineTo(8+cl, y+8); cg.strokePath();
+    // TR
+    cg.beginPath(); cg.moveTo(w-8-cl, y+8); cg.lineTo(w-8, y+8); cg.lineTo(w-8, y+8+cl); cg.strokePath();
+    // BR
+    cg.beginPath(); cg.moveTo(w-8-cl, y+h-8); cg.lineTo(w-8, y+h-8); cg.lineTo(w-8, y+h-8-cl); cg.strokePath();
+    this.dialogueLayer.add(cg);
+
+    // portrait slot
+    const pSlot = this.add.rectangle(15, 460, 160, 160, 0x000000, 0).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    this.dialogueLayer.add(pSlot);
+    // portrait image placeholder (set later)
+    this.dPortrait = this.add.image(95, 540, 'portrait_protagonist').setOrigin(0.5).setDisplaySize(160, 160);
+    this.dialogueLayer.add(this.dPortrait);
+    // mask portrait to slot bounds: use a Phaser.Display.Masks; simpler: setCrop or stay scaled
+    // (we keep it scaled to fit; portraits are drawn 160x200 → squashed)
+
+    // vertical divider
+    const vd = this.add.rectangle(190, 470, 1, 140, C.ACCENT, 0.5).setOrigin(0,0);
+    this.dialogueLayer.add(vd);
+
+    // speaker name strip
+    const speakerBg = this.add.rectangle(200, 462, 758, 24, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, C.ACCENT, 0.4);
+    this.dialogueLayer.add(speakerBg);
+    this.dSpeaker = this.add.text(212, 474, '', {
+      fontFamily: F.MONO, fontSize:'12px', color:C.ACCENT_S, letterSpacing:3
+    }).setOrigin(0,0.5);
+    this.dialogueLayer.add(this.dSpeaker);
+    // file tag right side
+    this.dFileTag = this.add.text(944, 474, '', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(1,0.5);
+    this.dialogueLayer.add(this.dFileTag);
+
+    // dialogue text
+    this.dText = this.add.text(210, 500, '', {
+      fontFamily: F.MONO, fontSize:'18px', color:C.LIGHT_S,
+      wordWrap:{ width: 720, useAdvancedWrap:true },
+      lineSpacing: 4
+    });
+    this.dialogueLayer.add(this.dText);
+
+    // continue indicator bottom right
+    this.dContinue = this.add.text(940, 615, '[ CLICK · SPACE TO CONTINUE ▶ ]', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:2
+    }).setOrigin(1,1);
+    this.dialogueLayer.add(this.dContinue);
+    this.tweens.add({ targets: this.dContinue, alpha:{from:1, to:0.35}, duration:700, yoyo:true, repeat:-1 });
+
+    // click anywhere on panel to advance
+    bg.setInteractive({ useHandCursor:true });
+    bg.on('pointerdown', () => this.advanceDialogue());
+  }
+
+  showDialogue(lines, onDone) {
+    this.dialogueActive = true;
+    this.dialogueQueue = lines.slice();
+    this._dialogueOnDone = onDone || null;
+    this.dialogueLayer.setVisible(true);
+    this.dialogueLayer.setAlpha(0);
+    this.dialogueLayer.y = 8;
+    this.tweens.add({ targets: this.dialogueLayer, alpha: 1, y: 0, duration: 200 });
+    this.advanceDialogue(true);
+  }
+
+  advanceDialogue(initial) {
+    if (!this.dialogueActive) return;
+    if (!initial) {
+      // pop one — done if empty
+      if (this.dialogueQueue.length === 0) {
+        this.hideDialogue();
+        return;
+      }
+    }
+    const next = this.dialogueQueue.shift();
+    if (!next) { this.hideDialogue(); return; }
+    this.dPortrait.setTexture(next.portrait);
+    this.dSpeaker.setText('// ' + (next.speaker || '— — —'));
+    this.dFileTag.setText('// LOG ENTRY · MIXED CASE');
+    this.dText.setStyle({
+      fontFamily: F.MONO, fontSize:'18px',
+      color: C.LIGHT_S,
+      fontStyle: next.italic ? 'italic' : '500',
+      wordWrap:{ width: 720, useAdvancedWrap:true }, align:'left', lineSpacing:6
+    });
+    this.dText.setText(next.text);
+    // little type-in feel: alpha
+    this.dText.setAlpha(0);
+    this.tweens.add({ targets: this.dText, alpha: 1, duration: 130 });
+  }
+
+  hideDialogue() {
+    this.dialogueActive = false;
+    this.tweens.add({
+      targets: this.dialogueLayer, alpha: 0, duration: 140,
+      onComplete: () => {
+        this.dialogueLayer.setVisible(false);
+        const done = this._dialogueOnDone;
+        this._dialogueOnDone = null;
+        if (done) done();
+      }
+    });
+  }
+
+  // ============================================
+  // HOTSPOT TRIGGER
+  // ============================================
+  triggerHotspot(h) {
+    if (this.dialogueActive) return;
+    this.showDialogue(h.lines, () => {
+      // collect evidence (if any)
+      let collected = false;
+      if (h.collect) {
+        if (h.collectExtra && this.gs.collectedEvidence.includes(h.collect)) {
+          // additional protagonist remark when re-encountering same evidence
+          this.showDialogue([P(h.collectExtra)]);
+          return;
+        }
+        collected = this.collectEvidence(h.collect);
+      }
+
+      // post-actions
+      if (h.after === 'coffins_block') {
+        // mystery man appears
+        this.showDialogue([
+          S('UNKNOWN', 'portrait_mystery', 'Nothing to see here. Move along.'),
+          S('UNKNOWN', 'portrait_mystery', 'I said move along.')
+        ]);
+        return;
+      }
+      if (h.after === 'call_logs_panel') {
+        this.toggleLogs(true);
+        return;
+      }
+
+      // walls special: trigger contradiction #2 if AUTOPSY collected
+      if (h.id === 'walls' && this.gs.collectedEvidence.includes('AUTOPSY REPORT')
+          && !this.gs.contradictionsTriggered.includes(2)) {
+        this.fireContradiction(2);
+        return;
+      }
+      // door special: trigger contradiction #3
+      if (h.id === 'door'
+          && this.gs.collectedEvidence.includes('HANDBOOK')
+          && this.gs.collectedEvidence.includes("DRAVEN'S ACCOUNT")
+          && !this.gs.contradictionsTriggered.includes(3)) {
+        this.fireContradiction(3);
+        return;
+      }
+
+      // run general contradiction check (will catch chained ones)
+      this.checkContradictions();
+    });
+  }
+
+  // ============================================
+  // NPC TRIGGER
+  // ============================================
+  triggerNPC(n) {
+    if (this.dialogueActive) return;
+    if (!this.gs.suspectsTalked.includes(n.id)) this.gs.suspectsTalked.push(n.id);
+
+    let queue = n.lines.slice();
+    // Conditional protagonist line
+    if (n.conditional && this.gs.collectedEvidence.includes(n.conditional.has)) {
+      queue.push(n.conditional.line);
+    }
+
+    this.showDialogue(queue, () => {
+      let collected = false;
+      if (n.collect) {
+        collected = this.collectEvidence(n.collect);
+      }
+      this.checkContradictions();
+    });
+  }
+
+  // ============================================
+  // EVIDENCE COLLECTION
+  // ============================================
+  collectEvidence(id) {
+    if (!id || this.gs.collectedEvidence.includes(id)) return false;
+    this.gs.collectedEvidence.push(id);
+    this._newestEvidence = id;
+    // ensure the new card is visible: switch to ALL and scroll to last
+    this.filter = 'ALL';
+    this.cardScroll = Math.max(0, this.gs.collectedEvidence.length - 6);
+    this.refreshEvidenceCards();
+    // tiny accent flash on header
+    this.cameras.main.flash(120, 0, 245, 212);
+    // refresh hotspots (collected ones dim)
+    this.refreshHotspots();
+    return true;
+  }
+
+  refreshHotspots() {
+    // clear and rebuild only the hotspots in current room (preserve NPCs)
+    // simpler: rebuild whole room layer
+    this.roomLayer.removeAll(true);
+    HOTSPOTS[this.gs.currentRoom].forEach(h => this.makeHotspot(h));
+    (NPCS[this.gs.currentRoom] || []).forEach(n => this.makeNPC(n));
+  }
+
+  // ============================================
+  // CONTRADICTIONS
+  // ============================================
+  checkContradictions() {
+    for (const c of CONTRADICTIONS) {
+      if (this.gs.contradictionsTriggered.includes(c.id)) continue;
+      const ok = c.requires.every(req => this.gs.collectedEvidence.includes(req));
+      if (ok) {
+        this.fireContradiction(c.id);
+        return; // one at a time
+      }
+    }
+  }
+
+  fireContradiction(id) {
+    const c = CONTRADICTIONS.find(x => x.id === id);
+    if (!c) return;
+    if (this.gs.contradictionsTriggered.includes(id)) return;
+    this.gs.contradictionsTriggered.push(id);
+    this.refreshHeader();
+
+    const layer = this.contraLayer;
+    layer.removeAll(true);
+    layer.setVisible(true).setAlpha(0);
+
+    // dark overlay
+    const overlay = this.add.rectangle(0, 0, 960, 640, 0x0a0a0f, 0.92).setOrigin(0,0);
+    layer.add(overlay);
+
+    // big text
+    const big = this.add.text(480, 230, 'CONTRADICTION', {
+      fontFamily: F.UI, fontSize:'72px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:8
+    }).setOrigin(0.5);
+    layer.add(big);
+    // border around big text
+    const tw = big.width + 80, th = big.height + 30;
+    const border = this.add.rectangle(480, 230, tw, th, 0x000000, 0).setOrigin(0.5).setStrokeStyle(3, C.ACCENT);
+    layer.add(border);
+    layer.add(drawAllCornerMarks(this, 480-tw/2, 230-th/2, tw, th, C.ACCENT, 22));
+    // index label
+    const idx = this.add.text(480, 290, `// CONTRADICTION 0${id} OF 05 LOGGED`, {
+      fontFamily: F.MONO, fontSize:'12px', color:C.MUTE_S, letterSpacing:4
+    }).setOrigin(0.5);
+    layer.add(idx);
+    // explanation
+    const expl = this.add.text(480, 360, c.text, {
+      fontFamily: F.MONO, fontSize:'18px', color:C.LIGHT_S, fontStyle:'italic',
+      wordWrap:{ width: 720, useAdvancedWrap:true }, align:'center', lineSpacing:6
+    }).setOrigin(0.5);
+    layer.add(expl);
+
+    // fade in, hold, fade out
+    this.tweens.add({
+      targets: layer, alpha: 1, duration: 300,
+      onComplete: () => {
+        this.time.delayedCall(1800, () => {
+          this.tweens.add({
+            targets: layer, alpha: 0, duration: 400,
+            onComplete: () => { layer.setVisible(false); layer.removeAll(true); }
+          });
+        });
+      }
+    });
+  }
+
+  // ============================================
+  // SUSPECT BOARD OVERLAY
+  // ============================================
+  toggleSuspectBoard(show) {
+    if (show) {
+      this.buildSuspectBoard();
+      this.suspectLayer.setVisible(true).setAlpha(0);
+      this.tweens.add({ targets: this.suspectLayer, alpha: 1, duration: 180 });
+    } else {
+      this.tweens.add({
+        targets: this.suspectLayer, alpha: 0, duration: 180,
+        onComplete: () => {
+          this.suspectLayer.setVisible(false);
+          this.suspectLayer.removeAll(true);
+        }
+      });
+    }
+  }
+
+  buildSuspectBoard() {
+    const layer = this.suspectLayer;
+    layer.removeAll(true);
+    // backdrop
+    const back = this.add.rectangle(0, 0, 960, 640, 0x0a0a0f, 0.97).setOrigin(0,0);
+    layer.add(back);
+    // grid lines (subtle)
+    const grid = this.add.graphics();
+    grid.lineStyle(1, 0x1f1f2a, 1);
+    for (let gx = 0; gx <= 960; gx += 40) {
+      grid.beginPath(); grid.moveTo(gx, 0); grid.lineTo(gx, 640); grid.strokePath();
+    }
+    for (let gy = 0; gy <= 640; gy += 40) {
+      grid.beginPath(); grid.moveTo(0, gy); grid.lineTo(960, gy); grid.strokePath();
+    }
+    layer.add(grid);
+
+    // header
+    const headerBg = this.add.rectangle(0, 0, 960, 56, C.BG_PANEL, 1).setOrigin(0,0);
+    const headerLine = this.add.rectangle(0, 56, 960, 2, C.ACCENT).setOrigin(0,0);
+    layer.add([headerBg, headerLine]);
+    layer.add(this.add.text(20, 16, '// SUSPECT BOARD', {
+      fontFamily: F.UI, fontSize:'18px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:5
+    }));
+    layer.add(this.add.text(20, 38, 'cross-reference suspects against evidence · pin items to build a case', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:1
+    }));
+    // close button
+    const closeBtn = makeButton(this, 880, 14, 60, 28, '× ESC', { fontSize:11, onClick: () => this.toggleSuspectBoard(false) });
+    layer.add(closeBtn);
+
+    // 5 cards in row, slightly larger
+    const cardW = 175, cardH = 410, gap = 10;
+    const totalW = 5 * cardW + 4 * gap;
+    const startX = (960 - totalW) / 2;
+    const cardY = 90;
+
+    SUSPECTS.forEach((sus, i) => {
+      const x = startX + i * (cardW + gap);
+      const card = this.add.container(x, cardY);
+      // bg
+      const bg = this.add.rectangle(0, 0, cardW, cardH, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, 0x2a2a36);
+      card.add(bg);
+      // top accent stripe
+      card.add(this.add.rectangle(0, 0, cardW, 4, C.ACCENT, 1).setOrigin(0,0));
+      // suspect index
+      card.add(this.add.text(10, 14, '0' + (i+1), {
+        fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2
+      }));
+      card.add(this.add.text(cardW-10, 14, '·', {
+        fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S
+      }).setOrigin(1,0));
+      // portrait
+      const port = this.add.image(cardW/2, 130, sus.portrait).setOrigin(0.5).setDisplaySize(150, 188);
+      card.add(port);
+      const portBorder = this.add.rectangle(cardW/2, 130, 152, 190, 0x000000, 0).setOrigin(0.5).setStrokeStyle(1, C.ACCENT, 0.7);
+      card.add(portBorder);
+      // name
+      card.add(this.add.text(cardW/2, 240, sus.name, {
+        fontFamily: F.UI, fontSize:'22px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:4
+      }).setOrigin(0.5));
+      // divider
+      card.add(this.add.rectangle(20, 268, cardW-40, 1, C.ACCENT, 0.4).setOrigin(0,0));
+      // description
+      card.add(this.add.text(cardW/2, 290, sus.desc, {
+        fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S,
+        wordWrap:{ width: cardW - 24, useAdvancedWrap: true }, align:'center', lineSpacing:3
+      }).setOrigin(0.5));
+
+      // pinned tags
+      const pins = this.gs.pins[sus.id] || [];
+      const pinsContainer = this.add.container(8, 330);
+      let py = 0;
+      pins.slice(0, 3).forEach(p => {
+        const tagW = cardW - 16;
+        const tagBg = this.add.rectangle(0, py, tagW, 20, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, C.ACCENT);
+        const tagTx = this.add.text(8, py + 10, '· ' + (p.length > 22 ? p.slice(0,21)+'…' : p), {
+          fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:1
+        }).setOrigin(0,0.5);
+        pinsContainer.add([tagBg, tagTx]);
+        py += 24;
+      });
+      if (pins.length > 3) {
+        pinsContainer.add(this.add.text(0, py, `+${pins.length - 3} more`, {
+          fontFamily: F.MONO, fontSize:'9px', color:C.MUTE_S
+        }));
+      }
+      card.add(pinsContainer);
+
+      // PIN button
+      const pinBtn = makeButton(this, 14, cardH - 38, cardW - 28, 26, '+ PIN EVIDENCE', {
+        fontSize: 11,
+        onClick: () => this.openPinPicker(sus)
+      });
+      card.add(pinBtn);
+
+      layer.add(card);
+    });
+  }
+
+  openPinPicker(sus) {
+    const layer = this.suspectLayer;
+    // overlay sub-modal
+    const sub = this.add.container(0, 0);
+    const back = this.add.rectangle(0, 0, 960, 640, 0x000000, 0.7).setOrigin(0,0).setInteractive();
+    sub.add(back);
+    // panel
+    const pw = 520, ph = 440;
+    const px = (960-pw)/2, py = (640-ph)/2;
+    const pBg = this.add.rectangle(px, py, pw, ph, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    sub.add(pBg);
+    sub.add(drawAllCornerMarks(this, px, py, pw, ph, C.ACCENT, 16));
+    // header
+    sub.add(this.add.rectangle(px+16, py+16, pw-32, 1, C.ACCENT).setOrigin(0,0));
+    sub.add(this.add.text(px+16, py+22, `// PIN EVIDENCE TO ${sus.name}`, {
+      fontFamily: F.UI, fontSize:'15px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4
+    }));
+    sub.add(this.add.text(px+pw-16, py+24, 'click an item to toggle pin', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S
+    }).setOrigin(1,0));
+
+    const pins = this.gs.pins[sus.id] || (this.gs.pins[sus.id] = []);
+    const list = this.gs.collectedEvidence;
+
+    if (list.length === 0) {
+      sub.add(this.add.text(px+pw/2, py+ph/2, '> NO EVIDENCE COLLECTED YET', {
+        fontFamily: F.MONO, fontSize:'14px', color:C.MUTE_S
+      }).setOrigin(0.5));
+    }
+
+    list.forEach((id, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const ix = px + 20 + col * 240;
+      const iy = py + 60 + row * 36;
+      const isPinned = pins.includes(id);
+      const meta = EVIDENCE_META[id];
+      const itemBg = this.add.rectangle(ix, iy, 230, 30, C.BG_PANEL2, 1).setOrigin(0,0).setStrokeStyle(1, isPinned ? C.ACCENT : 0x2a2a36);
+      const stripe = this.add.rectangle(ix, iy, 3, 30, isPinned ? C.ACCENT : C.MUTE, 1).setOrigin(0,0);
+      const tx = this.add.text(ix+10, iy+8, (isPinned ? '◉ ' : '○ ') + (id.length > 22 ? id.slice(0,21)+'…' : id), {
+        fontFamily: F.MONO, fontSize:'10px', color: isPinned ? C.ACCENT_S : C.LIGHT_S, letterSpacing:1
+      });
+      const tag = this.add.text(ix+220, iy+15, meta.type.slice(0,3), {
+        fontFamily: F.MONO, fontSize:'8px', color:C.MUTE_S
+      }).setOrigin(1, 0.5);
+      itemBg.setInteractive({ useHandCursor:true });
+      itemBg.on('pointerdown', () => {
+        if (pins.includes(id)) pins.splice(pins.indexOf(id), 1);
+        else pins.push(id);
+        sub.destroy();
+        this.openPinPicker(sus);
+        // also refresh underlying board to show pinned tags
+        this.toggleSuspectBoard(false);
+        this.toggleSuspectBoard(true);
+      });
+      itemBg.on('pointerover', () => itemBg.setStrokeStyle(1, C.ACCENT));
+      itemBg.on('pointerout',  () => itemBg.setStrokeStyle(1, isPinned ? C.ACCENT : 0x2a2a36));
+      sub.add([itemBg, stripe, tx, tag]);
+    });
+
+    // close
+    const closeBtn = makeButton(this, px+pw-110, py+ph-44, 92, 28, 'DONE', { fontSize:12, onClick: () => sub.destroy() });
+    sub.add(closeBtn);
+    layer.add(sub);
+  }
+
+  // ============================================
+  // HINT PANEL — slide in from right
+  // ============================================
+  toggleHintPanel(show) {
+    if (show) {
+      this.buildHintPanel();
+      this.hintLayer.setVisible(true);
+      this.hintLayer.x = 960;
+      this.tweens.add({ targets: this.hintLayer, x: 0, duration: 220, ease:'Cubic.Out' });
+    } else {
+      this.tweens.add({
+        targets: this.hintLayer, x: 960, duration: 200, ease:'Cubic.In',
+        onComplete: () => {
+          this.hintLayer.setVisible(false);
+          this.hintLayer.removeAll(true);
+          this.hintLayer.x = 0;
+        }
+      });
+    }
+  }
+
+  buildHintPanel() {
+    const layer = this.hintLayer;
+    layer.removeAll(true);
+    const pw = 380, ph = 480;
+    const px = 960 - pw - 20, py = 80;
+    // dim outside (don't block interaction with hint button)
+    // panel bg
+    const bg = this.add.rectangle(px, py, pw, ph, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    layer.add(bg);
+    layer.add(drawAllCornerMarks(this, px, py, pw, ph, C.ACCENT, 16));
+    // header
+    layer.add(this.add.rectangle(px+16, py+16, pw-32, 1, C.ACCENT).setOrigin(0,0));
+    layer.add(this.add.text(px+16, py+24, '// ANONYMOUS TIP', {
+      fontFamily: F.UI, fontSize:'14px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4
+    }));
+    // close
+    const closeBtn = makeButton(this, px+pw-46, py+18, 30, 22, '×', { fontSize:14, onClick: () => this.toggleHintPanel(false) });
+    layer.add(closeBtn);
+    // mystery man portrait
+    const port = this.add.image(px+24, py+60, 'portrait_mystery').setOrigin(0,0).setDisplaySize(120, 150);
+    layer.add(port);
+    layer.add(this.add.rectangle(px+24, py+60, 120, 150, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, C.ACCENT, 0.7));
+    // name
+    layer.add(this.add.text(px+160, py+72, '???', {
+      fontFamily: F.UI, fontSize:'30px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:6
+    }));
+    layer.add(this.add.text(px+160, py+108, '> source unknown · trust at own risk', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:1
+    }));
+    layer.add(this.add.rectangle(px+160, py+128, pw-180, 1, C.ACCENT, 0.4).setOrigin(0,0));
+    // divider before hints
+    layer.add(this.add.text(px+24, py+230, '// HINTS · ' + ROOM_NAMES[this.gs.currentRoom], {
+      fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:2
+    }));
+    layer.add(this.add.rectangle(px+24, py+250, pw-48, 1, C.ACCENT).setOrigin(0,0));
+    const hints = HINTS[this.gs.currentRoom];
+    hints.forEach((t, i) => {
+      const hy = py + 270 + i * 70;
+      const hbg = this.add.rectangle(px+24, hy, pw-48, 60, C.BG_PANEL2, 1).setOrigin(0,0).setStrokeStyle(1, 0x2a2a36);
+      const stripe = this.add.rectangle(px+24, hy, 4, 60, C.ACCENT, 1).setOrigin(0,0);
+      const num = this.add.text(px+38, hy+8, '0' + (i+1), {
+        fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:2
+      });
+      const tx = this.add.text(px+38, hy+24, t, {
+        fontFamily: F.MONO, fontSize:'12px', color:C.LIGHT_S,
+        wordWrap:{ width: pw - 80, useAdvancedWrap:true }, fontStyle:'italic'
+      });
+      layer.add([hbg, stripe, num, tx]);
+    });
+  }
+
+  // ============================================
+  // CALL LOGS PANEL
+  // ============================================
+  toggleLogs(show) {
+    if (show) {
+      this.buildLogsPanel();
+      this.logsLayer.setVisible(true).setAlpha(0);
+      this.tweens.add({ targets: this.logsLayer, alpha: 1, duration: 200 });
+    } else {
+      this.tweens.add({
+        targets: this.logsLayer, alpha: 0, duration: 200,
+        onComplete: () => { this.logsLayer.setVisible(false); this.logsLayer.removeAll(true); }
+      });
+    }
+  }
+
+  buildLogsPanel() {
+    const layer = this.logsLayer;
+    layer.removeAll(true);
+    // backdrop
+    const back = this.add.rectangle(0, 0, 960, 640, 0x0a0a0f, 0.92).setOrigin(0,0).setInteractive();
+    layer.add(back);
+    // panel
+    const pw = 720, ph = 500;
+    const px = (960-pw)/2, py = (640-ph)/2;
+    layer.add(this.add.rectangle(px, py, pw, ph, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT));
+    layer.add(drawAllCornerMarks(this, px, py, pw, ph, C.ACCENT, 18));
+    // header
+    layer.add(this.add.text(px+20, py+22, '// CALL LOG TERMINAL', {
+      fontFamily: F.UI, fontSize:'18px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:5
+    }));
+    layer.add(this.add.text(px+pw-20, py+26, '04 ENTRIES RECOVERED · CHRONOLOGICAL', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(1,0));
+    layer.add(this.add.rectangle(px+20, py+50, pw-40, 1, C.ACCENT).setOrigin(0,0));
+
+    CALL_LOGS.forEach((log, i) => {
+      const ly = py + 70 + i * 95;
+      const lbg = this.add.rectangle(px+20, ly, pw-40, 80, C.BG_PANEL2, 1).setOrigin(0,0).setStrokeStyle(1, 0x2a2a36);
+      const stripe = this.add.rectangle(px+20, ly, 4, 80, C.ACCENT, 1).setOrigin(0,0);
+      const tag = this.add.text(px+36, ly+10, log.tag, {
+        fontFamily: F.UI, fontSize:'13px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:3
+      });
+      const time = this.add.text(px+pw-30, ly+12, '· t+' + i, {
+        fontFamily: F.MONO, fontSize:'9px', color:C.MUTE_S
+      }).setOrigin(1,0);
+      const body = this.add.text(px+36, ly+32, log.body, {
+        fontFamily: F.MONO, fontSize:'12px', color:C.LIGHT_S,
+        wordWrap:{ width: pw - 70, useAdvancedWrap:true }, lineSpacing:2
+      });
+      layer.add([lbg, stripe, tag, time, body]);
+      // entry stagger fade
+      [lbg, stripe, tag, time, body].forEach(o => o.setAlpha(0));
+      this.tweens.add({ targets:[lbg, stripe, tag, time, body], alpha:1, duration:200, delay: 80 + i*120 });
+    });
+
+    const close = makeButton(this, px+pw-130, py+ph-46, 110, 30, 'CLOSE', { fontSize:13, onClick: () => this.toggleLogs(false) });
+    layer.add(close);
+  }
+}
+
+// =========================================================
+// ACCUSATIONSCENE — pick the killer
+// =========================================================
+class AccusationScene extends Phaser.Scene {
+  constructor() { super('AccusationScene'); }
+
+  create() {
+    this.gs = this.registry.get('gameState');
+    this.gs.gamePhase = 'accusation';
+    this.cameras.main.setBackgroundColor('#0a0a0f');
+
+    // grid background
+    const grid = this.add.graphics();
+    grid.lineStyle(1, 0x1a1a26, 1);
+    for (let x = 0; x <= 960; x += 40) { grid.beginPath(); grid.moveTo(x,0); grid.lineTo(x,640); grid.strokePath(); }
+    for (let y = 0; y <= 640; y += 40) { grid.beginPath(); grid.moveTo(0,y); grid.lineTo(960,y); grid.strokePath(); }
+    // accent diagonals top corners
+    const diag = this.add.graphics();
+    diag.lineStyle(1, C.ACCENT, 0.3);
+    diag.beginPath(); diag.moveTo(0, 80); diag.lineTo(80, 0); diag.strokePath();
+    diag.beginPath(); diag.moveTo(960, 80); diag.lineTo(880, 0); diag.strokePath();
+
+    // canvas frame
+    drawCanvasFrame(this);
+
+    // header
+    this.add.rectangle(0, 0, 960, 56, C.BG_PANEL, 1).setOrigin(0,0);
+    this.add.rectangle(0, 56, 960, 2, C.ACCENT).setOrigin(0,0);
+    this.add.text(20, 18, '// FINAL ACCUSATION', {
+      fontFamily: F.UI, fontSize:'18px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:5
+    });
+    this.add.text(940, 18, '// CASE: ACE JOHNSON · CLOSE THE LOOP', {
+      fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(1,0);
+
+    // title
+    this.add.text(480, 110, 'WHO KILLED ACE JOHNSON?', {
+      fontFamily: F.UI, fontSize:'42px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:6
+    }).setOrigin(0.5);
+    // accent underline
+    this.add.rectangle(480, 142, 380, 3, C.ACCENT).setOrigin(0.5);
+    this.add.text(480, 168, 'select one. there is no second guess.', {
+      fontFamily: F.MONO, fontSize:'13px', color:C.MUTE_S, letterSpacing:2, fontStyle:'italic'
+    }).setOrigin(0.5);
+
+    // 5 cards row
+    const cardW = 160, cardH = 280, gap = 20;
+    const totalW = 5*cardW + 4*gap;
+    const startX = (960 - totalW) / 2;
+    const y = 220;
+
+    SUSPECTS.forEach((sus, i) => {
+      const x = startX + i*(cardW+gap);
+      const card = this.add.container(x, y);
+      const bg = this.add.rectangle(0, 0, cardW, cardH, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.MUTE);
+      const portBg = this.add.rectangle(8, 8, cardW-16, 200, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, C.ACCENT, 0.7);
+      const port = this.add.image(cardW/2, 108, sus.portrait).setOrigin(0.5).setDisplaySize(cardW-20, 196);
+      const numTag = this.add.text(14, 18, '0' + (i+1), {
+        fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:2
+      });
+      const name = this.add.text(cardW/2, 226, sus.name, {
+        fontFamily: F.UI, fontSize:'22px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:5
+      }).setOrigin(0.5);
+      const div = this.add.rectangle(cardW/2, 248, 60, 1, C.ACCENT).setOrigin(0.5);
+      const action = this.add.text(cardW/2, 264, '> ACCUSE', {
+        fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:3
+      }).setOrigin(0.5);
+      // L corners
+      const corners = drawAllCornerMarks(this, x+4, y+4, cardW-8, cardH-8, C.ACCENT, 14);
+      corners.setAlpha(0);
+
+      card.add([bg, portBg, port, numTag, name, div, action]);
+      // make hit area
+      bg.setInteractive({ useHandCursor:true });
+      bg.on('pointerover', () => {
+        bg.setStrokeStyle(2, C.ACCENT);
+        action.setColor(C.ACCENT_S);
+        corners.setAlpha(1);
+        this.tweens.add({ targets: card, scaleX:1.05, scaleY:1.05, x: x - cardW*0.025, y: y - cardH*0.025, duration:140 });
+      });
+      bg.on('pointerout', () => {
+        bg.setStrokeStyle(2, C.MUTE);
+        action.setColor(C.ACCENT_S);
+        corners.setAlpha(0);
+        this.tweens.add({ targets: card, scaleX:1, scaleY:1, x, y, duration:140 });
+      });
+      bg.on('pointerdown', () => {
+        // prevent multi-click while transitioning
+        bg.disableInteractive();
+        this.cameras.main.flash(180, 0, 245, 212);
+        this.cameras.main.fadeOut(360, 10, 10, 15);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start('EndingScene', { accused: sus.id, correct: sus.correct });
+        });
+      });
+    });
+
+    // back button
+    const back = makeButton(this, 20, 590, 140, 30, '← BACK', {
+      fontSize:12,
+      onClick: () => { this.scene.start('GameScene'); }
+    });
+
+    // counts
+    const ev = this.gs.collectedEvidence.length;
+    const cn = this.gs.contradictionsTriggered.length;
+    this.add.text(940, 600, `EVIDENCE ${String(ev).padStart(2,'0')}/16  ·  CONTRADICTIONS ${cn}/05`, {
+      fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(1,0.5);
+
+    this.cameras.main.fadeIn(280, 10, 10, 15);
+  }
+}
+
+// =========================================================
+// ENDINGSCENE — good or bad
+// =========================================================
+class EndingScene extends Phaser.Scene {
+  constructor() { super('EndingScene'); }
+
+  init(data) {
+    this.accused = data && data.accused;
+    this.correct = !!(data && data.correct);
+  }
+
+  create() {
+    const gs = this.registry.get('gameState');
+    this.cameras.main.setBackgroundColor(this.correct ? '#0d1410' : '#100d10');
+    drawCanvasFrame(this);
+
+    // bg grid
+    const grid = this.add.graphics();
+    grid.lineStyle(1, this.correct ? 0x1a2a22 : 0x2a1a1a, 1);
+    for (let x = 0; x <= 960; x += 40) { grid.beginPath(); grid.moveTo(x,0); grid.lineTo(x,640); grid.strokePath(); }
+    for (let y = 0; y <= 640; y += 40) { grid.beginPath(); grid.moveTo(0,y); grid.lineTo(960,y); grid.strokePath(); }
+
+    // header
+    this.add.rectangle(0, 0, 960, 38, C.BG_PANEL, 1).setOrigin(0,0);
+    this.add.rectangle(0, 38, 960, 1, C.ACCENT).setOrigin(0,0);
+    this.add.text(20, 12, '// CASE FILE — VERDICT', {
+      fontFamily: F.UI, fontSize:'14px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4
+    });
+    this.add.text(940, 12, this.correct ? '// CASE CLOSED' : '// CASE OPEN — UNRESOLVED', {
+      fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(1,0);
+
+    // big verdict word
+    const verdict = this.correct ? 'CORRECT.' : 'INCORRECT.';
+    const big = this.add.text(480, 130, verdict, {
+      fontFamily: F.UI, fontSize:'90px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:10
+    }).setOrigin(0.5).setAlpha(0);
+    this.tweens.add({ targets: big, alpha:1, duration:400 });
+    // border around verdict
+    const tw = big.width + 80, th = big.height + 30;
+    const border = this.add.rectangle(480, 130, tw, th, 0x000000, 0).setOrigin(0.5).setStrokeStyle(3, C.ACCENT).setAlpha(0);
+    this.tweens.add({ targets: border, alpha:1, duration:400 });
+    drawAllCornerMarks(this, 480-tw/2, 130-th/2, tw, th, C.ACCENT, 22);
+
+    // sub line
+    this.add.text(480, 200, this.correct ? '// YOU SAW THE SHAPE OF IT.' : '// SOMEONE IS WALKING FREE.', {
+      fontFamily: F.MONO, fontSize:'13px', color:C.MUTE_S, letterSpacing:4
+    }).setOrigin(0.5);
+
+    // accused portrait card
+    const cardX = 80, cardY = 250, cardW = 200, cardH = 280;
+    this.add.rectangle(cardX, cardY, cardW, cardH, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    drawAllCornerMarks(this, cardX, cardY, cardW, cardH, C.ACCENT, 16);
+    const sus = SUSPECTS.find(s => s.id === this.accused) || SUSPECTS[0];
+    this.add.image(cardX + cardW/2, cardY + 110, sus.portrait).setOrigin(0.5).setDisplaySize(cardW-30, 196);
+    this.add.rectangle(cardX + cardW/2, cardY + 110, cardW-28, 198, 0x000000, 0).setOrigin(0.5).setStrokeStyle(1, C.ACCENT, 0.6);
+    this.add.text(cardX + cardW/2, cardY + 230, sus.name, {
+      fontFamily: F.UI, fontSize:'22px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:5
+    }).setOrigin(0.5);
+    this.add.rectangle(cardX + cardW/2, cardY + 252, 60, 1, C.ACCENT).setOrigin(0.5);
+    this.add.text(cardX + cardW/2, cardY + 264, this.correct ? 'CONVICTED' : 'ACCUSED', {
+      fontFamily: F.MONO, fontSize:'11px', color: this.correct ? C.ACCENT_S : C.MUTE_S, letterSpacing:3
+    }).setOrigin(0.5);
+
+    // briefing block right side
+    const bx = 320, by = 260, bw = 580, bh = 270;
+    this.add.rectangle(bx, by, bw, bh, C.BG_PANEL, 0.95).setOrigin(0,0).setStrokeStyle(1, C.ACCENT, 0.6);
+    drawAllCornerMarks(this, bx, by, bw, bh, C.ACCENT, 14);
+    this.add.text(bx + 18, by + 16, '// CASE NOTES', {
+      fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:3
+    });
+    this.add.rectangle(bx + 18, by + 36, bw - 36, 1, C.ACCENT, 0.4).setOrigin(0,0);
+
+    const goodLines = [
+      'Liam orchestrated the entire thing.',
+      'The motive notice was a prepared re-entry plan.',
+      'He was alone with Ace from 1 PM to 1:30 PM.',
+      'The dart was a setup.',
+      'Ace was trying to escape.',
+      'Liam made sure that did not happen.'
+    ];
+    const badLines = [
+      'You picked the wrong silhouette.',
+      'The timeline does not lie.',
+      'The motive notice was a prepared re-entry plan.',
+      'Someone wrote it. It was not the person you accused.',
+      'The killer is still inside these walls.',
+      'Walking free.'
+    ];
+    const lines = this.correct ? goodLines : badLines;
+
+    lines.forEach((t, i) => {
+      const txt = this.add.text(bx + 18, by + 56 + i*30, '> ' + t, {
+        fontFamily: F.MONO, fontSize:'14px', color: i === lines.length-1 ? C.ACCENT_S : C.LIGHT_S,
+        wordWrap:{ width: bw - 36, useAdvancedWrap:true }, fontStyle:'italic'
+      }).setAlpha(0);
+      this.tweens.add({ targets: txt, alpha:1, duration:260, delay: 600 + i*220 });
+    });
+
+    // stats line
+    const ev = gs.collectedEvidence.length;
+    const cn = gs.contradictionsTriggered.length;
+    this.add.text(480, 555, `EVIDENCE COLLECTED ${String(ev).padStart(2,'0')}/16   ·   CONTRADICTIONS ${cn}/05`, {
+      fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:3
+    }).setOrigin(0.5);
+
+    // button
+    const btnLabel = this.correct ? '[ CASE CLOSED ]' : '[ TRY AGAIN ]';
+    const btnX = (960 - 240) / 2;
+    const btn = makeButton(this, btnX, 590, 240, 38, btnLabel, {
+      fontSize: 16,
+      onClick: () => {
+        // reset state
+        this.registry.set('gameState', {
+          currentRoom: 'gatehouse',
+          collectedEvidence: [],
+          visitedRooms: [],
+          suspectsTalked: [],
+          pins: {},
+          contradictionsTriggered: [],
+          gamePhase: 'intro'
+        });
+        this.scene.start('IntroScene');
+      }
+    });
+    btn.setAlpha(0);
+    this.tweens.add({ targets: btn, alpha: 1, duration: 400, delay: 1500 });
+
+    this.cameras.main.fadeIn(360, 10, 10, 15);
+  }
+}
+
+// =========================================================
+// PHASER GAME CONFIG
+// =========================================================
+const config = {
+  type: Phaser.AUTO,
+  width: 960,
+  height: 640,
+  backgroundColor: '#111118',
+  parent: 'game-container',
+  scene: [BootScene, IntroScene, GameScene, AccusationScene, EndingScene],
+  dom: { createContainer: true },
+  scale: {
+    mode: Phaser.Scale.NONE,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  }
+};
+
+new Phaser.Game(config);
+
+</script>
+</body>
+</html>

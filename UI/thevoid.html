@@ -1,0 +1,1632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Case File — The Void Case</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+  body {
+    margin: 0;
+    background: #0d0514;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Rajdhani', sans-serif;
+  }
+  canvas { display: block; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+
+const C = {
+  ACCENT:    0xb366ff,
+  ACCENT_S:  '#b366ff',
+  ACCENT_D:  0x661aff,
+  BG_DEEP:   0x0d0514,
+  BG_DEEP_S: '#0d0514',
+  BG_PANEL:  0x1a0f2e,
+  BG_PANEL_S:'#1a0f2e',
+  BG_PANEL2: 0x261645,
+  BG_PANEL2_S:'#261645',
+  LIGHT:     0xf0e6f5,
+  LIGHT_S:   '#f0e6f5',
+  MUTE:      0x796599,
+  MUTE_S:    '#796599',
+  GRID:      0x261645,
+  RED:       0xff3366,
+  RED_S:     '#ff3366'
+};
+
+const F = { UI: 'Rajdhani, sans-serif', MONO: 'JetBrains Mono, monospace' };
+
+const ROOM_NAMES = {
+  planetarium: 'PLANETARIUM LOUNGE',
+  labyrinth:   'MIRROR LABYRINTH',
+  station:     'TV STATION',
+  void:        'VOID OF JUDGEMENT'
+};
+const ROOM_KEYS = ['planetarium', 'labyrinth', 'station', 'void'];
+
+const EVIDENCE_META = {
+  'STABBING VICTIM':       { type: 'PHYSICAL',  room: 'PLANETARIUM LOUNGE' },
+  'WET SPACE SUIT':        { type: 'PHYSICAL',  room: 'PLANETARIUM LOUNGE' },
+  'MISSING SUIT STAND':    { type: 'PHYSICAL',  room: 'PLANETARIUM LOUNGE' },
+  'KNOCKOUT GAS INFO':     { type: 'DOCUMENT',  room: 'PLANETARIUM LOUNGE' },
+  'OBJECT TRAIL':          { type: 'PHYSICAL',  room: 'MIRROR LABYRINTH' },
+  'ONE-WAY PANEL':         { type: 'PHYSICAL',  room: 'MIRROR LABYRINTH' },
+  'FRAMING PHONE':         { type: 'PHYSICAL',  room: 'MIRROR LABYRINTH' },
+  'KNOCKOUT GAS BOTTLE':   { type: 'PHYSICAL',  room: 'MIRROR LABYRINTH' },
+  "THE COURIER'S ACCOUNT": { type: 'TESTIMONY', room: 'MIRROR LABYRINTH' },
+  "THE DRIFTER'S ACCOUNT": { type: 'TESTIMONY', room: 'MIRROR LABYRINTH' },
+  'BROADCAST RECORDING':   { type: 'DOCUMENT',  room: 'TV STATION' },
+  'ANONYMOUS LETTER':      { type: 'DOCUMENT',  room: 'TV STATION' },
+  "THE OBSERVER'S ACCOUNT":{ type: 'TESTIMONY', room: 'TV STATION' },
+  'SAWN VICTIM':           { type: 'PHYSICAL',  room: 'VOID OF JUDGEMENT' },
+  'RIGGED SAW':            { type: 'PHYSICAL',  room: 'VOID OF JUDGEMENT' },
+  'VOID PANEL':            { type: 'PHYSICAL',  room: 'VOID OF JUDGEMENT' }
+};
+
+const SUSPECTS = [
+  { id:'scheduler', name:'THE SCHEDULER', portrait:'portrait_scheduler', desc:'Methodical. Organized. Present all night.', correct:true  },
+  { id:'operator',  name:'THE OPERATOR',  portrait:'portrait_operator',  desc:'Knows the facility secrets. Was held captive.', correct:false },
+  { id:'observer',  name:'THE OBSERVER',  portrait:'portrait_observer',  desc:'Refused to participate but gave up a location.', correct:false },
+  { id:'courier',   name:'THE COURIER',   portrait:'portrait_courier',   desc:'Witnessed the stabbing. Panicked and fled.', correct:false },
+  { id:'drifter',   name:'THE DRIFTER',   portrait:'portrait_drifter',   desc:'Trapped in the lower maze. Found with a phone.', correct:false }
+];
+
+const HINTS = {
+  planetarium: [
+    'The space suit is wet, but the display stand is empty.',
+    'There are specific rules about how the knockout gas is sold.',
+    'The victim was stuffed inside after death.'
+  ],
+  labyrinth: [
+    'Those objects on the ground are not random. They mark a path.',
+    'The floor panel has a tiny hole drilled into it. Perfect for a blade.',
+    'Why would a brand new phone be left down here?'
+  ],
+  station: [
+    'The anonymous letter told everyone to leave the studio.',
+    'The broadcast was pre-recorded and played from an empty room.',
+    'A masked figure with a voice changer. They could be anyone.'
+  ],
+  void: [
+    'The saw was rigged to fall exactly when the gates opened.',
+    'The victim was bound tightly. They were meant to die.',
+    'Look at the mirror panel. Does it remind you of another room?'
+  ]
+};
+
+const P = (text) => ({ speaker:'— — —', portrait:'portrait_protagonist', text, italic:true });
+const S = (speaker, portrait, text) => ({ speaker, portrait, text, italic:false });
+
+const HOTSPOTS = {
+  planetarium: [
+    { id:'body', label:'STABBING VICTIM', x:480, y:450,
+      lines:[ P('Multiple thin, deep stab wounds on both back and front.'),
+              P('Stuffed into a space suit after death.'),
+              P('A lot of blood beneath the suit.') ],
+      collect:'STABBING VICTIM' },
+    { id:'wetsuit', label:'WET SPACE SUIT', x:480, y:200,
+      lines:[ P('The suit the victim was found in.'),
+              P('It is wet on the outside, indicating recent use.'),
+              P('Someone wore it before putting the body inside.') ],
+      collect:'WET SPACE SUIT' },
+    { id:'stand', label:'MISSING SUIT STAND', x:300, y:520,
+      lines:[ P('One display stand is empty.'),
+              P('A suit was taken from here. This was prepared in advance.') ],
+      collect:'MISSING SUIT STAND' },
+    { id:'terminal', label:'INFO TERMINAL', x:750, y:300,
+      lines:[ P('Purchase records from the mall.'),
+              P('Knockout gas is only sold in packages of exactly three bottles.'),
+              P('No more, no less.') ],
+      collect:'KNOCKOUT GAS INFO',
+      after:'logs_panel' }
+  ],
+  labyrinth: [
+    { id:'trail', label:'OBJECT TRAIL', x:300, y:450,
+      lines:[ P('Random small objects placed in a deliberate path.'),
+              P('From the entrance to a specific floor panel.'),
+              P('This was a guide through the maze.') ],
+      collect:'OBJECT TRAIL' },
+    { id:'panel', label:'ONE-WAY PANEL', x:480, y:500,
+      lines:[ P('The circled floor panel is a one-way mirror.'),
+              P('Reflective from above, transparent from below.'),
+              P('There is a knife-sized hole drilled through it.') ],
+      collect:'ONE-WAY PANEL' },
+    { id:'phone', label:'FRAMING PHONE', x:650, y:550,
+      lines:[ P('A new phone with a fresh number.'),
+              P('Full of texts used to orchestrate the killings.'),
+              P('Left deliberately to frame whoever was trapped here.') ],
+      collect:'FRAMING PHONE' },
+    { id:'bottle', label:'SHATTERED GLASS', x:200, y:500,
+      lines:[ P('A shattered bottle of knockout gas.'),
+              P('Smells sweet and chemical.') ],
+      collect:'KNOCKOUT GAS BOTTLE' }
+  ],
+  station: [
+    { id:'screen', label:'TV SCREENS', x:480, y:200,
+      lines:[ P('The broadcast is paused on the screen.'),
+              P('A cloaked, masked figure with a modified voice.'),
+              P('Directing the group to search specific locations.'),
+              P('It was pre-recorded and made to appear live.') ],
+      collect:'BROADCAST RECORDING' },
+    { id:'letter', label:'ANONYMOUS LETTER', x:350, y:450,
+      lines:[ P('Sent to the hosts earlier.'),
+              P('Instructed them to film in the plaza and leave the studio free.'),
+              P('No name attached.') ],
+      collect:'ANONYMOUS LETTER' },
+    { id:'drive', label:'FLASH DRIVE', x:550, y:460,
+      lines:[ P('Left plugged into the broadcasting desk.'),
+              P('Contains the recorded video file.') ],
+      collect:'FLASH DRIVE' }
+  ],
+  void: [
+    { id:'sawn', label:'SAWN VICTIM', x:480, y:500,
+      lines:[ P('Bound to a mirror panel by ropes near the gate.'),
+              P('The metal saw fell directly on him when the gates opened.'),
+              P('Killed instantly by severe blood loss.') ],
+      collect:'SAWN VICTIM' },
+    { id:'saw', label:'RIGGED SAW', x:480, y:150,
+      lines:[ P('Battery-powered, no outlet required.'),
+              P('Set to fall the moment the gate was unlocked.') ],
+      collect:'RIGGED SAW' },
+    { id:'voidpanel', label:'VOID PANEL', x:650, y:520,
+      lines:[ P('The victim was bound to this panel.'),
+              P('It is the exact same type of one-way mirror panel as in the labyrinth.') ],
+      collect:'VOID PANEL' }
+  ]
+};
+
+const NPCS = {
+  planetarium: [
+    { id:'operator', name:'THE OPERATOR', portrait:'portrait_operator', x:200, y:450, color:0x3b2159,
+      lines:[ S('THE OPERATOR','portrait_operator','I was tied up in a basement. Someone threw gas in.'),
+              S('THE OPERATOR','portrait_operator','They dragged me out. Asked me about the Void gate and the labyrinth.'),
+              S('THE OPERATOR','portrait_operator','I had to tell them. They had a knife.') ] }
+  ],
+  labyrinth: [
+    { id:'courier', name:'THE COURIER', portrait:'portrait_courier', x:200, y:450, color:0x5e3a8c,
+      lines:[ S('THE COURIER','portrait_courier','I was here with him. He crouched down at the marked panel.'),
+              S('THE COURIER','portrait_courier','Suddenly he was bleeding. Stabbed from below!'),
+              S('THE COURIER','portrait_courier','I panicked. I saw a reflection in the mirrors... then I ran.') ],
+      collect:"THE COURIER'S ACCOUNT" },
+    { id:'drifter', name:'THE DRIFTER', portrait:'portrait_drifter', x:800, y:450, color:0x4d2673,
+      lines:[ S('THE DRIFTER','portrait_drifter','I got a text telling me to come here at midnight.'),
+              S('THE DRIFTER','portrait_drifter','Someone pushed me down the trapdoor and sealed it!'),
+              S('THE DRIFTER','portrait_drifter','That phone down there isn\'t mine. I swear. It was planted.') ],
+      collect:"THE DRIFTER'S ACCOUNT" }
+  ],
+  station: [
+    { id:'observer', name:'THE OBSERVER', portrait:'portrait_observer', x:750, y:450, color:0x6b4799,
+      lines:[ S('THE OBSERVER','portrait_observer','They came to me in a disguise. Asked for my help.'),
+              S('THE OBSERVER','portrait_observer','I refused. But I told them where to find The Operator.'),
+              S('THE OBSERVER','portrait_observer','I didn\'t think it would lead to a massacre.') ],
+      collect:"THE OBSERVER'S ACCOUNT" }
+  ],
+  void: [
+    { id:'scheduler', name:'THE SCHEDULER', portrait:'portrait_scheduler', x:800, y:450, color:0x2a1340,
+      lines:[ S('THE SCHEDULER','portrait_scheduler','A tragedy. So many lives lost in one night.'),
+              S('THE SCHEDULER','portrait_scheduler','I was following the broadcast instructions like everyone else.'),
+              S('THE SCHEDULER','portrait_scheduler','Whoever did this must be a chaotic, unpredictable monster.') ] }
+  ]
+};
+
+const CALL_LOGS = [
+  { tag:'LOG 20:00', body:'Purchase records: Costume, voice changer, and a secondary untraceable phone acquired from the mall.' },
+  { tag:'LOG 20:30', body:'Basement incident: Knockout gas deployed. The Operator is reported missing by witnesses.' },
+  { tag:'LOG 21:00', body:'Message sent to The Stabbing Victim: "Meet me at the Planetarium Lounge."' },
+  { tag:'LOG 00:30', body:'Main server override. Video file broadcasted from the TV Station terminal to all facility screens.' }
+];
+
+const CONTRADICTIONS = [
+  { id:1, requires:['WET SPACE SUIT','STABBING VICTIM'],
+    text:'The suit was wet from use, but the victim was stuffed inside after death. A suit is missing from the stand. This was prepared in advance.' },
+  { id:2, requires:['OBJECT TRAIL','ONE-WAY PANEL'],
+    text:'The objects guided someone to a specific panel on purpose. The panel had a drilled knife-hole. This was a guided assassination, not a random trap.' },
+  { id:3, requires:['ONE-WAY PANEL','VOID PANEL'],
+    text:'The same type of one-way mirror panel was used in two separate locations. The same person built both setups.' },
+  { id:4, requires:['BROADCAST RECORDING','ANONYMOUS LETTER'],
+    text:'The letter cleared the studio. The broadcast played from that same empty studio. The letter writer and the broadcaster are the same person.' },
+  { id:5, requires:['KNOCKOUT GAS BOTTLE','KNOCKOUT GAS INFO'],
+    text:'The gas is only sold in packs of three. Three victims were incapacitated across the facility. There is only one buyer.' }
+];
+
+const PORTRAITS = {
+  portrait_protagonist: null,
+  portrait_scheduler:   null,
+  portrait_operator:    null,
+  portrait_observer:    null,
+  portrait_courier:     null,
+  portrait_drifter:     null,
+  portrait_mystery:     null
+};
+
+// =========================================================
+// HELPERS
+// =========================================================
+function drawCornerMarks(s, x, y, w, h, color, len) {
+  len = len || 14;
+  const g = s.add.graphics();
+  g.lineStyle(2, color, 1);
+  g.beginPath(); g.moveTo(x, y+len); g.lineTo(x, y); g.lineTo(x+len, y); g.strokePath();
+  g.beginPath(); g.moveTo(x+w-len, y+h); g.lineTo(x+w, y+h); g.lineTo(x+w, y+h-len); g.strokePath();
+  return g;
+}
+
+function drawAllCornerMarks(s, x, y, w, h, color, len) {
+  len = len || 16;
+  const g = s.add.graphics();
+  g.lineStyle(2, color, 1);
+  g.beginPath(); g.moveTo(x, y+len); g.lineTo(x, y); g.lineTo(x+len, y); g.strokePath();
+  g.beginPath(); g.moveTo(x+w-len, y); g.lineTo(x+w, y); g.lineTo(x+w, y+len); g.strokePath();
+  g.beginPath(); g.moveTo(x, y+h-len); g.lineTo(x, y+h); g.lineTo(x+len, y+h); g.strokePath();
+  g.beginPath(); g.moveTo(x+w-len, y+h); g.lineTo(x+w, y+h); g.lineTo(x+w, y+h-len); g.strokePath();
+  return g;
+}
+
+function drawCanvasFrame(s) {
+  const g = s.add.graphics();
+  g.lineStyle(2, C.ACCENT, 1);
+  g.strokeRect(1, 1, 958, 638);
+  g.setDepth(9999);
+  const len = 22;
+  const cg = s.add.graphics();
+  cg.lineStyle(3, C.ACCENT, 1);
+  cg.beginPath(); cg.moveTo(0, len); cg.lineTo(0, 0); cg.lineTo(len, 0); cg.strokePath();
+  cg.beginPath(); cg.moveTo(960-len, 0); cg.lineTo(960, 0); cg.lineTo(960, len); cg.strokePath();
+  cg.beginPath(); cg.moveTo(0, 640-len); cg.lineTo(0, 640); cg.lineTo(len, 640); cg.strokePath();
+  cg.beginPath(); cg.moveTo(960-len, 640); cg.lineTo(960, 640); cg.lineTo(960, 640-len); cg.strokePath();
+  cg.setDepth(9999);
+  return [g, cg];
+}
+
+function makeButton(s, x, y, w, h, label, opts) {
+  opts = opts || {};
+  const fontSize = opts.fontSize || 14;
+  const cont = s.add.container(x, y);
+  const bg = s.add.rectangle(0, 0, w, h, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+  const txt = s.add.text(w/2, h/2, label, {
+    fontFamily: F.UI, fontSize: fontSize+'px', fontStyle:'600',
+    color: C.ACCENT_S
+  }).setOrigin(0.5);
+  cont.add([bg, txt]);
+  bg.setInteractive({ useHandCursor:true });
+  bg.on('pointerover', () => { bg.setFillStyle(C.ACCENT, 1); txt.setColor(C.BG_DEEP_S); });
+  bg.on('pointerout',  () => { bg.setFillStyle(C.BG_PANEL, 1); txt.setColor(C.ACCENT_S); });
+  if (opts.onClick) bg.on('pointerdown', opts.onClick);
+  cont.bg = bg; cont.txt = txt;
+  return cont;
+}
+
+// =========================================================
+// BOOTSCENE
+// =========================================================
+class BootScene extends Phaser.Scene {
+  constructor() { super('BootScene'); }
+  create() {
+    this.bakeBackgrounds();
+    this.loadPortraits();
+  }
+
+  loadPortraits() {
+    const keys = Object.keys(PORTRAITS);
+    const toLoad = [];
+
+    keys.forEach(key => {
+      const data = PORTRAITS[key];
+      if (!data) this.generateFallbackPortrait(key);
+      else toLoad.push(key);
+    });
+
+    if (toLoad.length === 0) {
+      this.scene.start('IntroScene');
+      return;
+    }
+
+    let loaded = 0;
+    toLoad.forEach(key => {
+      this.textures.once('addtexture-' + key, () => {
+        loaded++;
+        if (loaded === toLoad.length) this.scene.start('IntroScene');
+      });
+      this.textures.addBase64(key, PORTRAITS[key]);
+    });
+  }
+
+  generateFallbackPortrait(key) {
+    const fallbackColors = {
+      portrait_protagonist: { bg: 0x160a24, accent: C.ACCENT },
+      portrait_scheduler:   { bg: 0x1f0d33, accent: 0x8c1aff },
+      portrait_operator:    { bg: 0x170b26, accent: 0x9933ff },
+      portrait_observer:    { bg: 0x12081f, accent: 0xa64dff },
+      portrait_courier:     { bg: 0x1a0c2e, accent: 0xb366ff },
+      portrait_drifter:     { bg: 0x140a24, accent: 0xbf80ff },
+      portrait_mystery:     { bg: 0x1c0f2b, accent: 0xcc99ff }
+    };
+    const fc = fallbackColors[key] || { bg: 0x160a24, accent: C.ACCENT };
+    const name = key.replace('portrait_', '').toUpperCase();
+    const W = 160, H = 200;
+
+    const rt = this.add.renderTexture(0, 0, W, H).setVisible(false);
+    rt.fill(fc.bg);
+
+    const g = this.add.graphics();
+    g.lineStyle(2, fc.accent, 1);
+    g.strokeRect(2, 2, W - 4, H - 4);
+    if (key === 'portrait_protagonist') {
+      g.fillStyle(0x0a030f, 1);
+      g.fillEllipse(W / 2, 70, 60, 68);
+      g.lineStyle(2, C.ACCENT, 0.6);
+      g.strokeEllipse(W / 2, 70, 60, 68);
+      g.fillStyle(0x0a030f, 1);
+      g.beginPath();
+      g.moveTo(20, H); g.lineTo(42, 120); g.lineTo(W - 42, 120); g.lineTo(W - 20, H);
+      g.closePath(); g.fillPath();
+      g.lineStyle(2, C.ACCENT, 0.6); g.strokePath();
+      g.fillStyle(C.ACCENT, 0.6);
+      g.fillCircle(64, 70, 2); g.fillCircle(96, 70, 2);
+    } else {
+      g.fillStyle(fc.accent, 0.2);
+      g.fillCircle(W / 2, 60, 28);
+      g.beginPath();
+      g.moveTo(35, H); g.lineTo(50, 110); g.lineTo(W - 50, 110); g.lineTo(W - 35, H);
+      g.closePath(); g.fillPath();
+    }
+    rt.draw(g);
+    g.destroy();
+
+    const txt = this.add.text(W / 2, H - 24, name, {
+      fontFamily: F.UI, fontSize: '14px', fontStyle: '700',
+      color: '#' + fc.accent.toString(16).padStart(6, '0'), letterSpacing: 2
+    }).setOrigin(0.5);
+    rt.draw(txt);
+    txt.destroy();
+
+    rt.saveTexture(key);
+    rt.destroy();
+  }
+
+  mg() { return this.make.graphics({ add:false }); }
+
+  bakeBackgrounds() {
+    this.bakePlanetarium();
+    this.bakeLabyrinth();
+    this.bakeStation();
+    this.bakeVoid();
+  }
+
+  // ---- PLANETARIUM LOUNGE
+  bakePlanetarium() {
+    const W = 960, H = 640;
+    const g = this.mg();
+    
+    // Deep space background
+    g.fillStyle(0x05020a, 1); g.fillRect(0, 0, W, H);
+    
+    // Stars
+    g.fillStyle(0xe6ccff, 0.8);
+    for(let i=0; i<150; i++) {
+      g.fillCircle(Math.random()*W, Math.random()*H, Math.random()*1.5);
+    }
+    
+    // Glowing lounge table
+    g.fillStyle(0x1a0f2e, 1); g.fillEllipse(480, 500, 300, 100);
+    g.lineStyle(2, C.ACCENT, 0.5); g.strokeEllipse(480, 500, 300, 100);
+    g.fillStyle(0xb366ff, 0.1); g.fillEllipse(480, 500, 280, 80); // inner glow
+    
+    // Space suit stands
+    // Empty stand left
+    g.fillStyle(0x261645, 1); g.fillRect(280, 480, 60, 20);
+    g.lineStyle(2, C.MUTE, 1); g.beginPath(); g.moveTo(310, 480); g.lineTo(310, 250); g.strokePath();
+    // Stand with suit right
+    g.fillStyle(0x261645, 1); g.fillRect(620, 480, 60, 20);
+    g.lineStyle(2, C.MUTE, 1); g.beginPath(); g.moveTo(650, 480); g.lineTo(650, 250); g.strokePath();
+    g.fillStyle(0x3d2b59, 1); g.fillEllipse(650, 320, 80, 160); // suit body
+    g.fillStyle(0x1a0f2e, 1); g.fillCircle(650, 220, 35); // helmet
+    g.lineStyle(2, C.ACCENT, 0.8); g.strokeCircle(650, 220, 35);
+
+    g.generateTexture('bg_planetarium', W, H);
+    g.destroy();
+  }
+
+  // ---- MIRROR LABYRINTH
+  bakeLabyrinth() {
+    const W = 960, H = 640;
+    const g = this.mg();
+    
+    // Base floor
+    g.fillStyle(0x0d0514, 1); g.fillRect(0, 0, W, H);
+    
+    // Grid floor
+    g.lineStyle(1, 0x261645, 1);
+    for(let x=0; x<W; x+=40) { g.beginPath(); g.moveTo(x, 400); g.lineTo(x-200, H); g.strokePath(); }
+    for(let y=400; y<H; y+=25) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.strokePath(); }
+
+    // Mirror walls (angled trapezoids)
+    g.fillStyle(0x1a0f2e, 1);
+    g.beginPath(); g.moveTo(100, 0); g.lineTo(300, 150); g.lineTo(300, 450); g.lineTo(100, 550); g.fillPath();
+    g.lineStyle(2, 0x661aff, 0.6); g.strokePath();
+    
+    g.beginPath(); g.moveTo(860, 0); g.lineTo(660, 150); g.lineTo(660, 450); g.lineTo(860, 550); g.fillPath();
+    g.lineStyle(2, 0x661aff, 0.6); g.strokePath();
+    
+    // Reflections (cyan/purple diagonal streaks)
+    g.lineStyle(4, 0x00f5d4, 0.2); g.beginPath(); g.moveTo(150, 50); g.lineTo(250, 400); g.strokePath();
+    g.lineStyle(4, C.ACCENT, 0.2); g.beginPath(); g.moveTo(700, 100); g.lineTo(800, 450); g.strokePath();
+    
+    // Trail dots
+    g.fillStyle(0xf0e6f5, 0.8);
+    let px = 200, py = 580;
+    for(let i=0; i<8; i++) {
+      g.fillCircle(px, py, 4);
+      px += 35; py -= 15;
+    }
+    
+    // Trapdoor / Panel
+    g.fillStyle(0x05020a, 1);
+    g.beginPath(); g.moveTo(430, 480); g.lineTo(530, 480); g.lineTo(550, 520); g.lineTo(410, 520); g.fillPath();
+    g.lineStyle(2, C.ACCENT, 1); g.strokePath();
+    // Hole
+    g.fillStyle(0x000000, 1); g.fillCircle(480, 500, 6);
+
+    g.generateTexture('bg_labyrinth', W, H);
+    g.destroy();
+  }
+
+  // ---- TV STATION
+  bakeStation() {
+    const W = 960, H = 640;
+    const g = this.mg();
+    
+    // Dark room
+    g.fillStyle(0x160a24, 1); g.fillRect(0, 0, W, 400);
+    g.fillStyle(0x0d0514, 1); g.fillRect(0, 400, W, 240);
+
+    // Big TV Screens
+    g.fillStyle(0x05020a, 1); g.fillRect(150, 50, 660, 280);
+    g.lineStyle(4, 0x261645, 1); g.strokeRect(150, 50, 660, 280);
+    
+    // Screen contents (static / recording)
+    g.fillStyle(0x1a0f2e, 1); g.fillRect(160, 60, 640, 260);
+    g.lineStyle(2, 0x3d2b59, 0.5);
+    for(let y=60; y<320; y+=10) { g.beginPath(); g.moveTo(160, y); g.lineTo(800, y); g.strokePath(); }
+    // LIVE dot
+    g.fillStyle(0xff3366, 1); g.fillCircle(760, 90, 8);
+    
+    // Broadcasting Desk
+    g.fillStyle(0x261645, 1); g.fillRect(200, 400, 560, 150);
+    g.lineStyle(2, C.ACCENT, 0.7); g.strokeRect(200, 400, 560, 150);
+    
+    // Microphones
+    g.lineStyle(4, 0x05020a, 1);
+    g.beginPath(); g.moveTo(350, 450); g.lineTo(350, 400); g.strokePath(); g.fillStyle(0x3d2b59, 1); g.fillCircle(350, 390, 12);
+    g.beginPath(); g.moveTo(610, 450); g.lineTo(610, 400); g.strokePath(); g.fillStyle(0x3d2b59, 1); g.fillCircle(610, 390, 12);
+
+    g.generateTexture('bg_station', W, H);
+    g.destroy();
+  }
+
+  // ---- VOID OF JUDGEMENT
+  bakeVoid() {
+    const W = 960, H = 640;
+    const g = this.mg();
+    
+    // Abyss background
+    g.fillStyle(0x05020a, 1); g.fillRect(0, 0, W, H);
+    
+    // Heavy metallic gates
+    g.fillStyle(0x1a1a24, 1);
+    g.fillRect(180, 50, 300, 450); // Left gate
+    g.fillRect(480, 50, 300, 450); // Right gate
+    g.lineStyle(4, 0x333345, 1);
+    g.strokeRect(180, 50, 300, 450); g.strokeRect(480, 50, 300, 450);
+    
+    // Giant Saw Blade suspended
+    g.fillStyle(0x404050, 1); g.fillCircle(480, 150, 80);
+    g.lineStyle(4, 0x808090, 1);
+    // Saw teeth
+    for(let i=0; i<12; i++) {
+      const angle = (i/12) * Math.PI * 2;
+      const x1 = 480 + Math.cos(angle)*80; const y1 = 150 + Math.sin(angle)*80;
+      const x2 = 480 + Math.cos(angle+0.2)*100; const y2 = 150 + Math.sin(angle+0.2)*100;
+      g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.strokePath();
+    }
+    // Saw ropes
+    g.lineStyle(3, 0x3d2b59, 1);
+    g.beginPath(); g.moveTo(480, 150); g.lineTo(480, 0); g.strokePath();
+
+    // Floor panel
+    g.fillStyle(0x1a0f2e, 1);
+    g.beginPath(); g.moveTo(400, 500); g.lineTo(560, 500); g.lineTo(600, 550); g.lineTo(360, 550); g.fillPath();
+    g.lineStyle(2, C.ACCENT, 1); g.strokePath();
+
+    g.generateTexture('bg_void', W, H);
+    g.destroy();
+  }
+}
+
+// =========================================================
+// INTROSCENE
+// =========================================================
+class IntroScene extends Phaser.Scene {
+  constructor() { super('IntroScene'); }
+
+  create() {
+    this.registry.set('gameState', {
+      currentRoom: 'planetarium',
+      collectedEvidence: [],
+      visitedRooms: [],
+      suspectsTalked: [],
+      pins: {},
+      contradictionsTriggered: [],
+      gamePhase: 'intro'
+    });
+
+    this.cameras.main.setBackgroundColor('#0d0514');
+    drawCanvasFrame(this);
+
+    this.panelIndex = 0;
+    this.advancing = false;
+    this.layer = this.add.container(0, 0);
+
+    this.input.keyboard.on('keydown-SPACE', () => this.advance());
+    this.input.on('pointerdown', () => this.advance());
+
+    this.showPanel();
+  }
+
+  clearLayer() { this.layer.removeAll(true); }
+
+  showPanel() {
+    this.clearLayer();
+    const idx = this.panelIndex;
+
+    if (idx === 1 || idx === 3) {
+      const bg = this.add.image(480, 320, 'bg_planetarium').setAlpha(0.4);
+      this.layer.add(bg);
+      const tint = this.add.rectangle(480, 320, 960, 640, 0x0d0514, 0.6);
+      this.layer.add(tint);
+    }
+
+    const px = 80, py = 100, pw = 800, ph = 440;
+    const pBg = this.add.rectangle(px, py, pw, ph, 0x1a0f2e, idx === 4 ? 1 : 0.92).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    this.layer.add(pBg);
+    this.layer.add(drawAllCornerMarks(this, px, py, pw, ph, C.ACCENT, 18));
+
+    const stripText = `[ FILE ${String(idx+1).padStart(2,'0')} / 05 ]   ·   THE VOID CASE`;
+    const strip = this.add.text(px+18, py+14, stripText, {
+      fontFamily: F.MONO, fontSize:'12px', color:C.MUTE_S, letterSpacing:2
+    });
+    this.layer.add(strip);
+    const stripLine = this.add.rectangle(px+18, py+34, pw-36, 1, C.ACCENT).setOrigin(0,0);
+    this.layer.add(stripLine);
+
+    if (idx === 0) {
+      this.layer.add(this.add.text(480, 240, 'HALLOWEEN NIGHT.', { fontFamily: F.UI, fontSize:'56px', fontStyle:'700', color:C.LIGHT_S }).setOrigin(0.5));
+      this.layer.add(this.add.rectangle(480, 290, 220, 2, C.ACCENT).setOrigin(0.5));
+      this.layer.add(this.add.text(480, 340, 'A facility turned into a slaughterhouse.', { fontFamily: F.MONO, fontSize:'18px', color:C.MUTE_S }).setOrigin(0.5));
+    }
+    else if (idx === 1) {
+      this.layer.add(this.add.text(480, 240, 'MULTIPLE VICTIMS.', { fontFamily: F.UI, fontSize:'46px', fontStyle:'700', color:C.LIGHT_S }).setOrigin(0.5));
+      this.layer.add(this.add.rectangle(480, 285, 200, 2, C.ACCENT).setOrigin(0.5));
+      const lines = [
+        '> a stabbing in the lounge.',
+        '> a trap in the mirror labyrinth.',
+        '> ...and the void of judgement.'
+      ];
+      lines.forEach((t, i) => {
+        this.layer.add(this.add.text(280, 320 + i*32, t, { fontFamily: F.MONO, fontSize:'18px', color: i === 2 ? C.ACCENT_S : C.LIGHT_S }));
+      });
+    }
+    else if (idx === 2) {
+      const port = this.add.image(220, 320, 'portrait_protagonist').setOrigin(0.5).setDisplaySize(160, 200);
+      this.layer.add(port);
+      this.layer.add(this.add.rectangle(220, 320, 162, 202, 0x000000, 0).setOrigin(0.5).setStrokeStyle(2, C.ACCENT));
+      this.layer.add(drawAllCornerMarks(this, 139, 219, 162, 202, C.ACCENT, 12));
+
+      this.layer.add(this.add.text(340, 220, 'My name does not matter right now.', { fontFamily: F.MONO, fontSize:'17px', color:C.LIGHT_S, fontStyle:'italic' }));
+      this.layer.add(this.add.text(340, 270, 'The broadcast ordered us to search.', { fontFamily: F.MONO, fontSize:'17px', color:C.LIGHT_S, fontStyle:'italic' }));
+      this.layer.add(this.add.text(340, 320, 'Someone pulled the strings of this night,', { fontFamily: F.MONO, fontSize:'17px', color:C.LIGHT_S, fontStyle:'italic' }));
+      this.layer.add(this.add.text(340, 348, 'and orchestrated every death.', { fontFamily: F.MONO, fontSize:'17px', color:C.ACCENT_S, fontStyle:'italic' }));
+    }
+    else if (idx === 3) {
+      this.layer.add(this.add.text(480, 240, 'LAST KNOWN LOCATION', { fontFamily: F.UI, fontSize:'30px', fontStyle:'700', color:C.MUTE_S, letterSpacing:4 }).setOrigin(0.5));
+      this.layer.add(this.add.text(480, 290, 'PLANETARIUM LOUNGE.', { fontFamily: F.UI, fontSize:'56px', fontStyle:'700', color:C.ACCENT_S }).setOrigin(0.5));
+      this.layer.add(this.add.rectangle(480, 330, 280, 2, C.ACCENT).setOrigin(0.5));
+      this.layer.add(this.add.text(480, 370, 'That is where I start.', { fontFamily: F.MONO, fontSize:'18px', color:C.LIGHT_S, fontStyle:'italic' }).setOrigin(0.5));
+    }
+    else if (idx === 4) {
+      this.layer.add(this.add.text(480, 200, 'PROJECT REVIVAL', { fontFamily: F.UI, fontSize:'72px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:6 }).setOrigin(0.5));
+      this.layer.add(this.add.rectangle(480, 250, 360, 2, C.ACCENT).setOrigin(0.5));
+      this.layer.add(this.add.text(480, 290, 'CASE FILE — THE VOID CASE', { fontFamily: F.MONO, fontSize:'15px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(0.5));
+      const btn = makeButton(this, 340, 380, 280, 56, '[ BEGIN INVESTIGATION ]', { fontSize: 18, onClick: () => { this.scene.start('GameScene'); } });
+      this.layer.add(btn);
+      this.lastPanel = true;
+    }
+
+    if (idx < 4) {
+      const cont = this.add.text(px+pw-180, py+ph-30, '[ CLICK OR SPACE TO CONTINUE ▶ ]', { fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:2 });
+      this.layer.add(cont);
+      this.tweens.add({ targets: cont, alpha: { from: 1, to: 0.35 }, duration: 700, yoyo:true, repeat:-1 });
+    }
+    this.cameras.main.fadeIn(300, 10, 10, 15);
+  }
+
+  advance() {
+    if (this.advancing || this.lastPanel) return;
+    this.advancing = true;
+    this.cameras.main.fadeOut(220, 10, 10, 15);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.panelIndex++;
+      if (this.panelIndex > 4) { this.scene.start('GameScene'); return; }
+      this.advancing = false;
+      this.lastPanel = (this.panelIndex === 4);
+      this.showPanel();
+    });
+  }
+}
+
+// =========================================================
+// GAMESCENE
+// =========================================================
+class GameScene extends Phaser.Scene {
+  constructor() { super('GameScene'); }
+
+  create() {
+    this.gs = this.registry.get('gameState');
+    this.gs.gamePhase = 'investigation';
+    if (!this.gs.visitedRooms.includes(this.gs.currentRoom)) this.gs.visitedRooms.push(this.gs.currentRoom);
+
+    this.cameras.main.setBackgroundColor('#0d0514');
+
+    this.bgLayer       = this.add.container(0, 0).setDepth(0);
+    this.roomLayer     = this.add.container(0, 0).setDepth(10);
+    this.uiBackLayer   = this.add.container(0, 0).setDepth(40);
+    this.cardsLayer    = this.add.container(0, 0).setDepth(50);
+    this.navLayer      = this.add.container(0, 0).setDepth(60);
+    this.hintBtnLayer  = this.add.container(0, 0).setDepth(70);
+    this.dialogueLayer = this.add.container(0, 0).setDepth(100).setVisible(false);
+    this.suspectLayer  = this.add.container(0, 0).setDepth(200).setVisible(false);
+    this.hintLayer     = this.add.container(0, 0).setDepth(300).setVisible(false);
+    this.logsLayer     = this.add.container(0, 0).setDepth(400).setVisible(false);
+    this.contraLayer   = this.add.container(0, 0).setDepth(500).setVisible(false);
+
+    drawCanvasFrame(this);
+    this.buildHeader();
+    this.buildFilterButtons();
+    this.buildEvidenceRow();
+    this.buildNavBar();
+    this.buildHintButton();
+    this.buildDialoguePanel();
+
+    this.loadRoom(this.gs.currentRoom);
+    this.refreshEvidenceCards();
+    this.refreshNavBar();
+
+    this.input.keyboard.on('keydown-SPACE', () => { if (this.dialogueActive) this.advanceDialogue(); });
+    this.input.keyboard.on('keydown-ESC', () => {
+      if (this.suspectLayer.visible) this.toggleSuspectBoard(false);
+      else if (this.hintLayer.visible) this.toggleHintPanel(false);
+      else if (this.logsLayer.visible) this.toggleLogs(false);
+    });
+  }
+
+  buildHeader() {
+    const h = 38;
+    const bg = this.add.rectangle(0, 0, 960, h, C.BG_PANEL, 1).setOrigin(0,0);
+    const line = this.add.rectangle(0, h, 960, 1, C.ACCENT).setOrigin(0,0);
+    this.uiBackLayer.add([bg, line]);
+    this.headerLabel = this.add.text(20, 12, '', { fontFamily: F.UI, fontSize:'15px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4 });
+    this.headerSub = this.add.text(20, 28, '', { fontFamily: F.MONO, fontSize:'9px', color:C.MUTE_S, letterSpacing:2 });
+    this.headerStatus = this.add.text(940, 14, '', { fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(1, 0);
+    this.uiBackLayer.add([this.headerLabel, this.headerSub, this.headerStatus]);
+  }
+
+  refreshHeader() {
+    const room = this.gs.currentRoom;
+    this.headerLabel.setText(`// ${ROOM_NAMES[room]}`);
+    this.headerSub.setText(`zone ${ROOM_KEYS.indexOf(room)+1} / 04   ·   void case investigation`);
+    const ev = this.gs.collectedEvidence.length;
+    const cn = this.gs.contradictionsTriggered.length;
+    this.headerStatus.setText(`EVIDENCE ${String(ev).padStart(2,'0')}/16   ·   CONTRADICTIONS ${cn}/05`);
+  }
+
+  loadRoom(room) {
+    this.gs.currentRoom = room;
+    if (!this.gs.visitedRooms.includes(room)) this.gs.visitedRooms.push(room);
+
+    this.bgLayer.removeAll(true);
+    this.roomLayer.removeAll(true);
+
+    const bg = this.add.image(480, 320, 'bg_' + room);
+    this.bgLayer.add(bg);
+
+    const dim = this.add.rectangle(0, 360, 960, 280, 0x000000, 0.18).setOrigin(0,0);
+    this.bgLayer.add(dim);
+
+    HOTSPOTS[room].forEach(h => this.makeHotspot(h));
+    (NPCS[room] || []).forEach(n => this.makeNPC(n));
+
+    this.refreshHeader();
+    this.refreshNavBar();
+
+    this.cameras.main.flash(180, 179, 102, 255); // Purple flash
+  }
+
+  makeHotspot(h) {
+    const collected = h.collect && this.gs.collectedEvidence.includes(h.collect);
+    const cont = this.add.container(h.x, h.y);
+    cont.hsId = h.id;
+
+    const br = this.add.graphics();
+    br.lineStyle(1.5, C.ACCENT, 1);
+    const r = 22;
+    [[-r,-r,1,1],[r,-r,-1,1],[-r,r,1,-1],[r,r,-1,-1]].forEach(([x,y,sx,sy]) => {
+      br.beginPath(); br.moveTo(x, y); br.lineTo(x + 8*sx, y); br.moveTo(x, y); br.lineTo(x, y + 8*sy); br.strokePath();
+    });
+    cont.add(br);
+
+    const dia = this.add.graphics();
+    if (collected) { dia.fillStyle(C.ACCENT_D, 0.7); dia.lineStyle(1.5, C.ACCENT, 0.7); } 
+    else { dia.fillStyle(C.ACCENT, 1); dia.lineStyle(1.5, C.LIGHT, 1); }
+    dia.beginPath(); dia.moveTo(0, -8); dia.lineTo(8, 0); dia.lineTo(0, 8); dia.lineTo(-8, 0); dia.closePath(); dia.fillPath(); dia.strokePath();
+    cont.add(dia);
+
+    const lbl = this.add.text(0, 28, h.label, { fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:1.5 }).setOrigin(0.5).setAlpha(0);
+    cont.add(lbl);
+
+    const hit = this.add.rectangle(0, 0, 56, 56, 0x000000, 0).setInteractive({ useHandCursor:true });
+    cont.add(hit);
+
+    hit.on('pointerover', () => { lbl.setAlpha(1); this.tweens.add({ targets: dia, scale:1.4, duration:120 }); });
+    hit.on('pointerout', () => { lbl.setAlpha(0); this.tweens.add({ targets: dia, scale:1.0, duration:120 }); });
+    hit.on('pointerdown', () => this.triggerHotspot(h));
+
+    this.tweens.add({ targets: [dia, br], alpha:{ from:0.6, to:1.0 }, duration:900, yoyo:true, repeat:-1 });
+    this.roomLayer.add(cont);
+  }
+
+  makeNPC(n) {
+    const cont = this.add.container(n.x, n.y);
+    const sh = this.add.ellipse(0, 70, 70, 14, 0x000000, 0.5);
+    cont.add(sh);
+    const body = this.add.graphics();
+    body.fillStyle(n.color, 1);
+    body.beginPath(); body.moveTo(-22, 60); body.lineTo(-14, 0); body.lineTo(14, 0); body.lineTo(22, 60); body.closePath(); body.fillPath();
+    body.lineStyle(2, 0x0d0514, 1); body.strokePath();
+    cont.add(body);
+    const head = this.add.circle(0, -14, 14, 0xd4cfe0).setStrokeStyle(2, 0x0d0514);
+    cont.add(head);
+    const nameBg = this.add.rectangle(0, -50, 80, 18, C.BG_PANEL, 0.92).setStrokeStyle(1, C.ACCENT);
+    const nameTxt = this.add.text(0, -50, n.name, { fontFamily: F.UI, fontSize:'11px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:2 }).setOrigin(0.5);
+    cont.add([nameBg, nameTxt]);
+    const dot = this.add.circle(34, -36, 4, C.ACCENT);
+    cont.add(dot);
+    this.tweens.add({ targets: dot, alpha:{from:0.4,to:1}, duration:700, yoyo:true, repeat:-1 });
+
+    const hit = this.add.rectangle(0, 20, 80, 100, 0x000000, 0).setInteractive({ useHandCursor:true });
+    cont.add(hit);
+    hit.on('pointerover', () => { this.tweens.add({ targets: cont, y: n.y - 4, duration: 140 }); });
+    hit.on('pointerout', () => { this.tweens.add({ targets: cont, y: n.y, duration: 140 }); });
+    hit.on('pointerdown', () => this.triggerNPC(n));
+
+    this.roomLayer.add(cont);
+  }
+
+  buildFilterButtons() {
+    this.filter = 'ALL';
+    const labels = ['ALL', 'PHYSICAL', 'TESTIMONY', 'DOCUMENT'];
+    this.filterBtns = {};
+    let x = 14;
+    labels.forEach(l => {
+      const w = (l === 'ALL') ? 60 : 100;
+      const btn = this.add.container(x, 50);
+      const bg = this.add.rectangle(0, 0, w, 22, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, C.MUTE);
+      const txt = this.add.text(w/2, 11, l, { fontFamily: F.UI, fontSize:'11px', fontStyle:'700', color:C.MUTE_S, letterSpacing:2 }).setOrigin(0.5);
+      btn.add([bg, txt]);
+      bg.setInteractive({ useHandCursor:true });
+      bg.on('pointerover', () => { if (this.filter !== l) bg.setStrokeStyle(1, C.ACCENT); });
+      bg.on('pointerout',  () => { if (this.filter !== l) bg.setStrokeStyle(1, C.MUTE); });
+      bg.on('pointerdown', () => { this.filter = l; this.refreshEvidenceCards(); });
+      this.filterBtns[l] = { bg, txt };
+      this.cardsLayer.add(btn);
+      x += w + 6;
+    });
+    this.add.text(580, 56, '// EVIDENCE LOCKER', { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(0,0).setDepth(50);
+    this.evCount = this.add.text(940, 56, '00 / 16', { fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:2 }).setOrigin(1,0).setDepth(50);
+    this.cardsLayer.add(this.evCount);
+  }
+
+  buildEvidenceRow() {
+    const stripY = 80;
+    const stripBg = this.add.rectangle(10, stripY, 940, 70, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, 0x261645);
+    const stripTop = this.add.rectangle(10, stripY, 940, 1, C.ACCENT, 0.5).setOrigin(0,0);
+    this.cardsLayer.add([stripBg, stripTop]);
+
+    this.cardScroll = 0;
+    const leftBtn = this.add.container(10, stripY+22);
+    const lbg = this.add.rectangle(0, 0, 22, 26, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, C.ACCENT);
+    const ltx = this.add.text(11, 13, '◀', { fontFamily:F.MONO, fontSize:'12px', color:C.ACCENT_S }).setOrigin(0.5);
+    leftBtn.add([lbg, ltx]);
+    lbg.setInteractive({ useHandCursor:true });
+    lbg.on('pointerdown', () => { this.cardScroll = Math.max(0, this.cardScroll - 1); this.refreshEvidenceCards(); });
+    lbg.on('pointerover', () => { lbg.setFillStyle(C.ACCENT); ltx.setColor(C.BG_DEEP_S); });
+    lbg.on('pointerout',  () => { lbg.setFillStyle(C.BG_PANEL); ltx.setColor(C.ACCENT_S); });
+    this.cardsLayer.add(leftBtn);
+
+    const rightBtn = this.add.container(928, stripY+22);
+    const rbg = this.add.rectangle(0, 0, 22, 26, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, C.ACCENT);
+    const rtx = this.add.text(11, 13, '▶', { fontFamily:F.MONO, fontSize:'12px', color:C.ACCENT_S }).setOrigin(0.5);
+    rightBtn.add([rbg, rtx]);
+    rbg.setInteractive({ useHandCursor:true });
+    rbg.on('pointerdown', () => { this.cardScroll = this.cardScroll + 1; this.refreshEvidenceCards(); });
+    rbg.on('pointerover', () => { rbg.setFillStyle(C.ACCENT); rtx.setColor(C.BG_DEEP_S); });
+    rbg.on('pointerout',  () => { rbg.setFillStyle(C.BG_PANEL); rtx.setColor(C.ACCENT_S); });
+    this.cardsLayer.add(rightBtn);
+
+    this.emptyText = this.add.text(480, stripY+34, '// NO EVIDENCE COLLECTED · INTERACT WITH HOTSPOTS', { fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(0.5);
+    this.cardsLayer.add(this.emptyText);
+    this.cardsHolder = this.add.container(38, stripY+5);
+    this.cardsLayer.add(this.cardsHolder);
+  }
+
+  refreshEvidenceCards() {
+    Object.keys(this.filterBtns).forEach(k => {
+      const o = this.filterBtns[k];
+      if (k === this.filter) { o.bg.setFillStyle(C.ACCENT, 1).setStrokeStyle(1, C.ACCENT); o.txt.setColor(C.BG_DEEP_S); } 
+      else { o.bg.setFillStyle(C.BG_PANEL, 1).setStrokeStyle(1, C.MUTE); o.txt.setColor(C.MUTE_S); }
+    });
+
+    const evs = this.gs.collectedEvidence.filter(id => {
+      if (this.filter === 'ALL') return true;
+      return EVIDENCE_META[id] && EVIDENCE_META[id].type === this.filter;
+    });
+
+    this.evCount.setText(`${String(this.gs.collectedEvidence.length).padStart(2,'0')} / 16`);
+    this.emptyText.setVisible(evs.length === 0);
+    this.cardsHolder.removeAll(true);
+
+    const cardW = 138, cardH = 60, gap = 8;
+    const visible = 6;
+    const maxScroll = Math.max(0, evs.length - visible);
+    if (this.cardScroll > maxScroll) this.cardScroll = maxScroll;
+
+    for (let i = 0; i < visible; i++) {
+      const idx = i + this.cardScroll;
+      if (idx >= evs.length) break;
+      const id = evs[idx];
+      const meta = EVIDENCE_META[id];
+      const x = i * (cardW + gap);
+
+      const card = this.add.container(x, 0);
+      const bg = this.add.rectangle(0, 0, cardW, cardH, C.BG_PANEL2, 1).setOrigin(0,0).setStrokeStyle(1, C.MUTE);
+      const stripe = this.add.rectangle(0, 0, 3, cardH, C.ACCENT, 1).setOrigin(0,0);
+      const tagColor = meta.type === 'PHYSICAL' ? C.ACCENT : (meta.type === 'TESTIMONY' ? 0xc49a2a : 0x8aa6c8);
+      const tagBg = this.add.rectangle(cardW-50, 6, 44, 12, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, tagColor);
+      const tagTx = this.add.text(cardW-28, 12, meta.type.slice(0,3), { fontFamily: F.MONO, fontSize:'8px', color:'#'+tagColor.toString(16).padStart(6,'0'), letterSpacing:1 }).setOrigin(0.5);
+      const title = this.add.text(10, 14, id.length > 18 ? id.slice(0,17)+'…' : id, { fontFamily: F.UI, fontSize:'12px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:1 });
+      const room = this.add.text(10, 30, '> ' + meta.room, { fontFamily: F.MONO, fontSize:'9px', color:C.MUTE_S, letterSpacing:1 });
+      const bottomBar = this.add.rectangle(10, cardH-15, cardW-20, 1, 0x261645).setOrigin(0,0);
+      const bottomTag = this.add.text(10, cardH-12, '· COLLECTED', { fontFamily: F.MONO, fontSize:'8px', color:C.ACCENT_S, letterSpacing:1 });
+
+      card.add([bg, stripe, tagBg, tagTx, title, room, bottomBar, bottomTag]);
+      if (id === this._newestEvidence) {
+        card.setScale(0.6); card.setAlpha(0);
+        this.tweens.add({ targets: card, scale:1, alpha:1, duration:380, ease:'Back.Out' });
+      }
+      this.cardsHolder.add(card);
+    }
+    this._newestEvidence = null;
+    this.refreshHeader();
+  }
+
+  buildNavBar() {
+    const navY = 590, navH = 50;
+    const bg = this.add.rectangle(0, navY, 960, navH, C.BG_PANEL, 1).setOrigin(0,0);
+    const top = this.add.rectangle(0, navY, 960, 2, C.ACCENT).setOrigin(0,0);
+    this.navLayer.add([bg, top]);
+
+    this.navTabs = {};
+    const tabW = 120;
+    ROOM_KEYS.forEach((k, i) => {
+      const x = i * tabW;
+      const tab = this.add.container(x, navY);
+      const tBg = this.add.rectangle(0, 2, tabW, navH-2, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, 0x261645);
+      const tTx = this.add.text(tabW/2, navH/2 + 2, ROOM_NAMES[k].replace('THE ','').replace(' OF JUDGEMENT',''), { fontFamily: F.UI, fontSize:'13px', fontStyle:'700', color:C.MUTE_S, letterSpacing:2 }).setOrigin(0.5);
+      const dot = this.add.circle(10, 12, 3, C.ACCENT).setVisible(false);
+      tab.add([tBg, tTx, dot]);
+      tBg.setInteractive({ useHandCursor:true });
+      tBg.on('pointerdown', () => { if (this.dialogueActive) return; if (this.gs.currentRoom === k) return; this.transitionToRoom(k); });
+      tBg.on('pointerover', () => { if (this.gs.currentRoom !== k) tBg.setStrokeStyle(1, C.ACCENT); });
+      tBg.on('pointerout',  () => { if (this.gs.currentRoom !== k) tBg.setStrokeStyle(1, 0x261645); });
+      this.navTabs[k] = { bg:tBg, txt:tTx, dot };
+      this.navLayer.add(tab);
+    });
+
+    const sx = 4 * tabW;
+    const sCont = this.add.container(sx, navY);
+    const sBg = this.add.rectangle(0, 2, 130, navH-2, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, C.ACCENT);
+    const sTx = this.add.text(65, navH/2 + 2, 'SUSPECTS', { fontFamily: F.UI, fontSize:'13px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:3 }).setOrigin(0.5);
+    sCont.add([sBg, sTx]);
+    sBg.setInteractive({ useHandCursor:true });
+    sBg.on('pointerover', () => { sBg.setFillStyle(C.ACCENT); sTx.setColor(C.BG_DEEP_S); });
+    sBg.on('pointerout',  () => { sBg.setFillStyle(C.BG_PANEL); sTx.setColor(C.ACCENT_S); });
+    sBg.on('pointerdown', () => { if (!this.dialogueActive) this.toggleSuspectBoard(true); });
+    this.navLayer.add(sCont);
+
+    const ax = 4 * tabW + 130;
+    this.accuseCont = this.add.container(ax, navY);
+    const aBg = this.add.rectangle(0, 2, 350, navH-2, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    const aTx = this.add.text(175, navH/2 + 2, '▶ MAKE ACCUSATION', { fontFamily: F.UI, fontSize:'15px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4 }).setOrigin(0.5);
+    this.accuseCont.add([aBg, aTx]);
+    aBg.setInteractive({ useHandCursor:true });
+    aBg.on('pointerover', () => { aBg.setFillStyle(C.ACCENT); aTx.setColor(C.BG_DEEP_S); });
+    aBg.on('pointerout',  () => { aBg.setFillStyle(C.BG_PANEL); aTx.setColor(C.ACCENT_S); });
+    aBg.on('pointerdown', () => { if (this.dialogueActive) return; if (this.gs.visitedRooms.length < 4) return; this.scene.start('AccusationScene'); });
+    this.accuseCont.setVisible(false);
+    this.navLayer.add(this.accuseCont);
+    
+    this.accuseEmpty = this.add.rectangle(ax, navY+2, 350, navH-2, C.BG_PANEL, 1).setOrigin(0,0);
+    const aeTx = this.add.text(ax + 175, navY + navH/2 + 2, '// ACCUSATION LOCKED — VISIT ALL ROOMS', { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(0.5);
+    this.navLayer.add([this.accuseEmpty, aeTx]);
+    this.accuseEmptyTxt = aeTx;
+  }
+
+  refreshNavBar() {
+    Object.keys(this.navTabs).forEach(k => {
+      const o = this.navTabs[k];
+      const isCurrent = (this.gs.currentRoom === k);
+      const visited = this.gs.visitedRooms.includes(k);
+      if (isCurrent) { o.bg.setFillStyle(C.ACCENT, 1).setStrokeStyle(1, C.ACCENT); o.txt.setColor(C.BG_DEEP_S); } 
+      else { o.bg.setFillStyle(C.BG_PANEL, 1).setStrokeStyle(1, 0x261645); o.txt.setColor(visited ? C.LIGHT_S : C.MUTE_S); }
+      o.dot.setVisible(visited && !isCurrent);
+    });
+    const ready = this.gs.visitedRooms.length >= 4;
+    this.accuseCont.setVisible(ready);
+    this.accuseEmpty.setVisible(!ready);
+    this.accuseEmptyTxt.setVisible(!ready);
+  }
+
+  transitionToRoom(room) {
+    this.cameras.main.fadeOut(180, 10, 10, 15);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.loadRoom(room);
+      this.cameras.main.fadeIn(220, 10, 10, 15);
+    });
+  }
+
+  buildHintButton() {
+    const hb = this.add.container(910, 600);
+    const bg = this.add.rectangle(0, 0, 40, 30, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    const tx = this.add.text(20, 15, '?', { fontFamily: F.UI, fontSize:'18px', fontStyle:'700', color:C.ACCENT_S }).setOrigin(0.5);
+    hb.add([bg, tx]);
+    bg.setInteractive({ useHandCursor:true });
+    bg.on('pointerover', () => { bg.setFillStyle(C.ACCENT); tx.setColor(C.BG_DEEP_S); });
+    bg.on('pointerout',  () => { bg.setFillStyle(C.BG_PANEL); tx.setColor(C.ACCENT_S); });
+    bg.on('pointerdown', () => { if (this.dialogueActive) return; this.toggleHintPanel(!this.hintLayer.visible); });
+    this.hintBtnLayer.add(hb);
+  }
+
+  buildDialoguePanel() {
+    const x = 0, y = 450, w = 960, h = 190;
+    const bg = this.add.rectangle(x, y, w, h, 0x1a0f2e, 1).setOrigin(0,0);
+    const topLine = this.add.rectangle(x, y, w, 2, C.ACCENT).setOrigin(0,0);
+    this.dialogueLayer.add([bg, topLine]);
+    const cg = this.add.graphics();
+    cg.lineStyle(2, C.ACCENT, 1);
+    const cl = 14;
+    cg.beginPath(); cg.moveTo(8, y+8+cl); cg.lineTo(8, y+8); cg.lineTo(8+cl, y+8); cg.strokePath();
+    cg.beginPath(); cg.moveTo(w-8-cl, y+8); cg.lineTo(w-8, y+8); cg.lineTo(w-8, y+8+cl); cg.strokePath();
+    cg.beginPath(); cg.moveTo(w-8-cl, y+h-8); cg.lineTo(w-8, y+h-8); cg.lineTo(w-8, y+h-8-cl); cg.strokePath();
+    this.dialogueLayer.add(cg);
+
+    const pSlot = this.add.rectangle(15, 460, 160, 160, 0x000000, 0).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    this.dialogueLayer.add(pSlot);
+    this.dPortrait = this.add.image(95, 540, 'portrait_protagonist').setOrigin(0.5).setDisplaySize(160, 160);
+    this.dialogueLayer.add(this.dPortrait);
+    const vd = this.add.rectangle(190, 470, 1, 140, C.ACCENT, 0.5).setOrigin(0,0);
+    this.dialogueLayer.add(vd);
+    const speakerBg = this.add.rectangle(200, 462, 758, 24, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, C.ACCENT, 0.4);
+    this.dialogueLayer.add(speakerBg);
+    this.dSpeaker = this.add.text(212, 474, '', { fontFamily: F.MONO, fontSize:'12px', color:C.ACCENT_S, letterSpacing:3 }).setOrigin(0,0.5);
+    this.dialogueLayer.add(this.dSpeaker);
+    this.dFileTag = this.add.text(944, 474, '', { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(1,0.5);
+    this.dialogueLayer.add(this.dFileTag);
+
+    this.dText = this.add.text(210, 500, '', { fontFamily: F.MONO, fontSize:'18px', color:C.LIGHT_S, wordWrap:{ width: 720, useAdvancedWrap:true }, lineSpacing: 4 });
+    this.dialogueLayer.add(this.dText);
+
+    this.dContinue = this.add.text(940, 615, '[ CLICK · SPACE TO CONTINUE ▶ ]', { fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:2 }).setOrigin(1,1);
+    this.dialogueLayer.add(this.dContinue);
+    this.tweens.add({ targets: this.dContinue, alpha:{from:1, to:0.35}, duration:700, yoyo:true, repeat:-1 });
+
+    bg.setInteractive({ useHandCursor:true });
+    bg.on('pointerdown', () => this.advanceDialogue());
+  }
+
+  showDialogue(lines, onDone) {
+    this.dialogueActive = true;
+    this.dialogueQueue = lines.slice();
+    this._dialogueOnDone = onDone || null;
+    this.dialogueLayer.setVisible(true);
+    this.dialogueLayer.setAlpha(0);
+    this.dialogueLayer.y = 8;
+    this.tweens.add({ targets: this.dialogueLayer, alpha: 1, y: 0, duration: 200 });
+    this.advanceDialogue(true);
+  }
+
+  advanceDialogue(initial) {
+    if (!this.dialogueActive) return;
+    if (!initial) { if (this.dialogueQueue.length === 0) { this.hideDialogue(); return; } }
+    const next = this.dialogueQueue.shift();
+    if (!next) { this.hideDialogue(); return; }
+    this.dPortrait.setTexture(next.portrait);
+    this.dSpeaker.setText('// ' + (next.speaker || '— — —'));
+    this.dFileTag.setText('// LOG ENTRY · MIXED CASE');
+    this.dText.setStyle({ fontFamily: F.MONO, fontSize:'18px', color: C.LIGHT_S, fontStyle: next.italic ? 'italic' : '500', wordWrap:{ width: 720, useAdvancedWrap:true }, align:'left', lineSpacing:6 });
+    this.dText.setText(next.text);
+    this.dText.setAlpha(0);
+    this.tweens.add({ targets: this.dText, alpha: 1, duration: 130 });
+  }
+
+  hideDialogue() {
+    this.dialogueActive = false;
+    this.tweens.add({
+      targets: this.dialogueLayer, alpha: 0, duration: 140,
+      onComplete: () => {
+        this.dialogueLayer.setVisible(false);
+        const done = this._dialogueOnDone;
+        this._dialogueOnDone = null;
+        if (done) done();
+      }
+    });
+  }
+
+  triggerHotspot(h) {
+    if (this.dialogueActive) return;
+    this.showDialogue(h.lines, () => {
+      if (h.collect) {
+        if (h.collectExtra && this.gs.collectedEvidence.includes(h.collect)) {
+          this.showDialogue([P(h.collectExtra)]); return;
+        }
+        this.collectEvidence(h.collect);
+      }
+      if (h.after === 'logs_panel') {
+        this.toggleLogs(true); return;
+      }
+      this.checkContradictions();
+    });
+  }
+
+  triggerNPC(n) {
+    if (this.dialogueActive) return;
+    if (!this.gs.suspectsTalked.includes(n.id)) this.gs.suspectsTalked.push(n.id);
+    let queue = n.lines.slice();
+    if (n.conditional && this.gs.collectedEvidence.includes(n.conditional.has)) { queue.push(n.conditional.line); }
+    this.showDialogue(queue, () => {
+      if (n.collect) this.collectEvidence(n.collect);
+      this.checkContradictions();
+    });
+  }
+
+  collectEvidence(id) {
+    if (!id || this.gs.collectedEvidence.includes(id)) return false;
+    this.gs.collectedEvidence.push(id);
+    this._newestEvidence = id;
+    this.filter = 'ALL';
+    this.cardScroll = Math.max(0, this.gs.collectedEvidence.length - 6);
+    this.refreshEvidenceCards();
+    this.cameras.main.flash(120, 179, 102, 255);
+    this.refreshHotspots();
+    return true;
+  }
+
+  refreshHotspots() {
+    this.roomLayer.removeAll(true);
+    HOTSPOTS[this.gs.currentRoom].forEach(h => this.makeHotspot(h));
+    (NPCS[this.gs.currentRoom] || []).forEach(n => this.makeNPC(n));
+  }
+
+  checkContradictions() {
+    for (const c of CONTRADICTIONS) {
+      if (this.gs.contradictionsTriggered.includes(c.id)) continue;
+      const ok = c.requires.every(req => this.gs.collectedEvidence.includes(req));
+      if (ok) { this.fireContradiction(c.id); return; }
+    }
+  }
+
+  fireContradiction(id) {
+    const c = CONTRADICTIONS.find(x => x.id === id);
+    if (!c) return;
+    if (this.gs.contradictionsTriggered.includes(id)) return;
+    this.gs.contradictionsTriggered.push(id);
+    this.refreshHeader();
+
+    const layer = this.contraLayer;
+    layer.removeAll(true);
+    layer.setVisible(true).setAlpha(0);
+
+    const overlay = this.add.rectangle(0, 0, 960, 640, 0x0d0514, 0.92).setOrigin(0,0);
+    layer.add(overlay);
+
+    const big = this.add.text(480, 230, 'CONTRADICTION', { fontFamily: F.UI, fontSize:'72px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:8 }).setOrigin(0.5);
+    layer.add(big);
+    const tw = big.width + 80, th = big.height + 30;
+    const border = this.add.rectangle(480, 230, tw, th, 0x000000, 0).setOrigin(0.5).setStrokeStyle(3, C.ACCENT);
+    layer.add(border);
+    layer.add(drawAllCornerMarks(this, 480-tw/2, 230-th/2, tw, th, C.ACCENT, 22));
+    
+    const idx = this.add.text(480, 290, `// CONTRADICTION 0${id} OF 05 LOGGED`, { fontFamily: F.MONO, fontSize:'12px', color:C.MUTE_S, letterSpacing:4 }).setOrigin(0.5);
+    layer.add(idx);
+    const expl = this.add.text(480, 360, c.text, { fontFamily: F.MONO, fontSize:'18px', color:C.LIGHT_S, fontStyle:'italic', wordWrap:{ width: 720, useAdvancedWrap:true }, align:'center', lineSpacing:6 }).setOrigin(0.5);
+    layer.add(expl);
+
+    this.tweens.add({
+      targets: layer, alpha: 1, duration: 300,
+      onComplete: () => {
+        this.time.delayedCall(1800, () => {
+          this.tweens.add({
+            targets: layer, alpha: 0, duration: 400,
+            onComplete: () => { layer.setVisible(false); layer.removeAll(true); }
+          });
+        });
+      }
+    });
+  }
+
+  toggleSuspectBoard(show) {
+    if (show) {
+      this.buildSuspectBoard();
+      this.suspectLayer.setVisible(true).setAlpha(0);
+      this.tweens.add({ targets: this.suspectLayer, alpha: 1, duration: 180 });
+    } else {
+      this.tweens.add({
+        targets: this.suspectLayer, alpha: 0, duration: 180,
+        onComplete: () => { this.suspectLayer.setVisible(false); this.suspectLayer.removeAll(true); }
+      });
+    }
+  }
+
+  buildSuspectBoard() {
+    const layer = this.suspectLayer;
+    layer.removeAll(true);
+    const back = this.add.rectangle(0, 0, 960, 640, 0x0d0514, 0.97).setOrigin(0,0);
+    layer.add(back);
+    const grid = this.add.graphics();
+    grid.lineStyle(1, 0x261645, 1);
+    for (let gx = 0; gx <= 960; gx += 40) { grid.beginPath(); grid.moveTo(gx, 0); grid.lineTo(gx, 640); grid.strokePath(); }
+    for (let gy = 0; gy <= 640; gy += 40) { grid.beginPath(); grid.moveTo(0, gy); grid.lineTo(960, gy); grid.strokePath(); }
+    layer.add(grid);
+
+    const headerBg = this.add.rectangle(0, 0, 960, 56, C.BG_PANEL, 1).setOrigin(0,0);
+    const headerLine = this.add.rectangle(0, 56, 960, 2, C.ACCENT).setOrigin(0,0);
+    layer.add([headerBg, headerLine]);
+    layer.add(this.add.text(20, 16, '// SUSPECT BOARD', { fontFamily: F.UI, fontSize:'18px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:5 }));
+    layer.add(this.add.text(20, 38, 'cross-reference suspects against evidence · pin items to build a case', { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:1 }));
+    const closeBtn = makeButton(this, 880, 14, 60, 28, '× ESC', { fontSize:11, onClick: () => this.toggleSuspectBoard(false) });
+    layer.add(closeBtn);
+
+    const cardW = 175, cardH = 410, gap = 10;
+    const totalW = 5 * cardW + 4 * gap;
+    const startX = (960 - totalW) / 2;
+    const cardY = 90;
+
+    SUSPECTS.forEach((sus, i) => {
+      const x = startX + i * (cardW + gap);
+      const card = this.add.container(x, cardY);
+      const bg = this.add.rectangle(0, 0, cardW, cardH, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(1, 0x261645);
+      card.add(bg);
+      card.add(this.add.rectangle(0, 0, cardW, 4, C.ACCENT, 1).setOrigin(0,0));
+      card.add(this.add.text(10, 14, '0' + (i+1), { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2 }));
+      card.add(this.add.text(cardW-10, 14, '·', { fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S }).setOrigin(1,0));
+      const port = this.add.image(cardW/2, 130, sus.portrait).setOrigin(0.5).setDisplaySize(150, 188);
+      card.add(port);
+      const portBorder = this.add.rectangle(cardW/2, 130, 152, 190, 0x000000, 0).setOrigin(0.5).setStrokeStyle(1, C.ACCENT, 0.7);
+      card.add(portBorder);
+      card.add(this.add.text(cardW/2, 240, sus.name, { fontFamily: F.UI, fontSize:'22px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:4 }).setOrigin(0.5));
+      card.add(this.add.rectangle(20, 268, cardW-40, 1, C.ACCENT, 0.4).setOrigin(0,0));
+      card.add(this.add.text(cardW/2, 290, sus.desc, { fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, wordWrap:{ width: cardW - 24, useAdvancedWrap: true }, align:'center', lineSpacing:3 }).setOrigin(0.5));
+
+      const pins = this.gs.pins[sus.id] || [];
+      const pinsContainer = this.add.container(8, 330);
+      let py = 0;
+      pins.slice(0, 3).forEach(p => {
+        const tagW = cardW - 16;
+        const tagBg = this.add.rectangle(0, py, tagW, 20, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, C.ACCENT);
+        const tagTx = this.add.text(8, py + 10, '· ' + (p.length > 22 ? p.slice(0,21)+'…' : p), { fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:1 }).setOrigin(0,0.5);
+        pinsContainer.add([tagBg, tagTx]);
+        py += 24;
+      });
+      if (pins.length > 3) { pinsContainer.add(this.add.text(0, py, `+${pins.length - 3} more`, { fontFamily: F.MONO, fontSize:'9px', color:C.MUTE_S })); }
+      card.add(pinsContainer);
+
+      const pinBtn = makeButton(this, 14, cardH - 38, cardW - 28, 26, '+ PIN EVIDENCE', { fontSize: 11, onClick: () => this.openPinPicker(sus) });
+      card.add(pinBtn);
+      layer.add(card);
+    });
+  }
+
+  openPinPicker(sus) {
+    const layer = this.suspectLayer;
+    const sub = this.add.container(0, 0);
+    const back = this.add.rectangle(0, 0, 960, 640, 0x000000, 0.7).setOrigin(0,0).setInteractive();
+    sub.add(back);
+    const pw = 520, ph = 440;
+    const px = (960-pw)/2, py = (640-ph)/2;
+    const pBg = this.add.rectangle(px, py, pw, ph, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    sub.add(pBg);
+    sub.add(drawAllCornerMarks(this, px, py, pw, ph, C.ACCENT, 16));
+    sub.add(this.add.rectangle(px+16, py+16, pw-32, 1, C.ACCENT).setOrigin(0,0));
+    sub.add(this.add.text(px+16, py+22, `// PIN EVIDENCE TO ${sus.name}`, { fontFamily: F.UI, fontSize:'15px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4 }));
+    sub.add(this.add.text(px+pw-16, py+24, 'click an item to toggle pin', { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S }).setOrigin(1,0));
+
+    const pins = this.gs.pins[sus.id] || (this.gs.pins[sus.id] = []);
+    const list = this.gs.collectedEvidence;
+
+    if (list.length === 0) {
+      sub.add(this.add.text(px+pw/2, py+ph/2, '> NO EVIDENCE COLLECTED YET', { fontFamily: F.MONO, fontSize:'14px', color:C.MUTE_S }).setOrigin(0.5));
+    }
+
+    list.forEach((id, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const ix = px + 20 + col * 240;
+      const iy = py + 60 + row * 36;
+      const isPinned = pins.includes(id);
+      const meta = EVIDENCE_META[id];
+      const itemBg = this.add.rectangle(ix, iy, 230, 30, C.BG_PANEL2, 1).setOrigin(0,0).setStrokeStyle(1, isPinned ? C.ACCENT : 0x261645);
+      const stripe = this.add.rectangle(ix, iy, 3, 30, isPinned ? C.ACCENT : C.MUTE, 1).setOrigin(0,0);
+      const tx = this.add.text(ix+10, iy+8, (isPinned ? '◉ ' : '○ ') + (id.length > 22 ? id.slice(0,21)+'…' : id), { fontFamily: F.MONO, fontSize:'10px', color: isPinned ? C.ACCENT_S : C.LIGHT_S, letterSpacing:1 });
+      const tag = this.add.text(ix+220, iy+15, meta.type.slice(0,3), { fontFamily: F.MONO, fontSize:'8px', color:C.MUTE_S }).setOrigin(1, 0.5);
+      itemBg.setInteractive({ useHandCursor:true });
+      itemBg.on('pointerdown', () => {
+        if (pins.includes(id)) pins.splice(pins.indexOf(id), 1); else pins.push(id);
+        sub.destroy(); this.openPinPicker(sus);
+        this.toggleSuspectBoard(false); this.toggleSuspectBoard(true);
+      });
+      itemBg.on('pointerover', () => itemBg.setStrokeStyle(1, C.ACCENT));
+      itemBg.on('pointerout',  () => itemBg.setStrokeStyle(1, isPinned ? C.ACCENT : 0x261645));
+      sub.add([itemBg, stripe, tx, tag]);
+    });
+
+    const closeBtn = makeButton(this, px+pw-110, py+ph-44, 92, 28, 'DONE', { fontSize:12, onClick: () => sub.destroy() });
+    sub.add(closeBtn);
+    layer.add(sub);
+  }
+
+  toggleHintPanel(show) {
+    if (show) {
+      this.buildHintPanel();
+      this.hintLayer.setVisible(true);
+      this.hintLayer.x = 960;
+      this.tweens.add({ targets: this.hintLayer, x: 0, duration: 220, ease:'Cubic.Out' });
+    } else {
+      this.tweens.add({
+        targets: this.hintLayer, x: 960, duration: 200, ease:'Cubic.In',
+        onComplete: () => { this.hintLayer.setVisible(false); this.hintLayer.removeAll(true); this.hintLayer.x = 0; }
+      });
+    }
+  }
+
+  buildHintPanel() {
+    const layer = this.hintLayer;
+    layer.removeAll(true);
+    const pw = 380, ph = 480;
+    const px = 960 - pw - 20, py = 80;
+    const bg = this.add.rectangle(px, py, pw, ph, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    layer.add(bg);
+    layer.add(drawAllCornerMarks(this, px, py, pw, ph, C.ACCENT, 16));
+    layer.add(this.add.rectangle(px+16, py+16, pw-32, 1, C.ACCENT).setOrigin(0,0));
+    layer.add(this.add.text(px+16, py+24, '// ANONYMOUS TIP', { fontFamily: F.UI, fontSize:'14px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4 }));
+    const closeBtn = makeButton(this, px+pw-46, py+18, 30, 22, '×', { fontSize:14, onClick: () => this.toggleHintPanel(false) });
+    layer.add(closeBtn);
+    const port = this.add.image(px+24, py+60, 'portrait_mystery').setOrigin(0,0).setDisplaySize(120, 150);
+    layer.add(port);
+    layer.add(this.add.rectangle(px+24, py+60, 120, 150, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, C.ACCENT, 0.7));
+    layer.add(this.add.text(px+160, py+72, '???', { fontFamily: F.UI, fontSize:'30px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:6 }));
+    layer.add(this.add.text(px+160, py+108, '> source unknown · trust at own risk', { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:1 }));
+    layer.add(this.add.rectangle(px+160, py+128, pw-180, 1, C.ACCENT, 0.4).setOrigin(0,0));
+    layer.add(this.add.text(px+24, py+230, '// HINTS · ' + ROOM_NAMES[this.gs.currentRoom], { fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:2 }));
+    layer.add(this.add.rectangle(px+24, py+250, pw-48, 1, C.ACCENT).setOrigin(0,0));
+    const hints = HINTS[this.gs.currentRoom];
+    hints.forEach((t, i) => {
+      const hy = py + 270 + i * 70;
+      const hbg = this.add.rectangle(px+24, hy, pw-48, 60, C.BG_PANEL2, 1).setOrigin(0,0).setStrokeStyle(1, 0x261645);
+      const stripe = this.add.rectangle(px+24, hy, 4, 60, C.ACCENT, 1).setOrigin(0,0);
+      const num = this.add.text(px+38, hy+8, '0' + (i+1), { fontFamily: F.MONO, fontSize:'10px', color:C.ACCENT_S, letterSpacing:2 });
+      const tx = this.add.text(px+38, hy+24, t, { fontFamily: F.MONO, fontSize:'12px', color:C.LIGHT_S, wordWrap:{ width: pw - 80, useAdvancedWrap:true }, fontStyle:'italic' });
+      layer.add([hbg, stripe, num, tx]);
+    });
+  }
+
+  toggleLogs(show) {
+    if (show) {
+      this.buildLogsPanel();
+      this.logsLayer.setVisible(true).setAlpha(0);
+      this.tweens.add({ targets: this.logsLayer, alpha: 1, duration: 200 });
+    } else {
+      this.tweens.add({
+        targets: this.logsLayer, alpha: 0, duration: 200,
+        onComplete: () => { this.logsLayer.setVisible(false); this.logsLayer.removeAll(true); }
+      });
+    }
+  }
+
+  buildLogsPanel() {
+    const layer = this.logsLayer;
+    layer.removeAll(true);
+    const back = this.add.rectangle(0, 0, 960, 640, 0x0d0514, 0.92).setOrigin(0,0).setInteractive();
+    layer.add(back);
+    const pw = 720, ph = 500;
+    const px = (960-pw)/2, py = (640-ph)/2;
+    layer.add(this.add.rectangle(px, py, pw, ph, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT));
+    layer.add(drawAllCornerMarks(this, px, py, pw, ph, C.ACCENT, 18));
+    layer.add(this.add.text(px+20, py+22, '// FACILITY SERVER LOGS', { fontFamily: F.UI, fontSize:'18px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:5 }));
+    layer.add(this.add.text(px+pw-20, py+26, '04 ENTRIES RECOVERED · CHRONOLOGICAL', { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(1,0));
+    layer.add(this.add.rectangle(px+20, py+50, pw-40, 1, C.ACCENT).setOrigin(0,0));
+
+    CALL_LOGS.forEach((log, i) => {
+      const ly = py + 70 + i * 95;
+      const lbg = this.add.rectangle(px+20, ly, pw-40, 80, C.BG_PANEL2, 1).setOrigin(0,0).setStrokeStyle(1, 0x261645);
+      const stripe = this.add.rectangle(px+20, ly, 4, 80, C.ACCENT, 1).setOrigin(0,0);
+      const tag = this.add.text(px+36, ly+10, log.tag, { fontFamily: F.UI, fontSize:'13px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:3 });
+      const time = this.add.text(px+pw-30, ly+12, '· t+' + i, { fontFamily: F.MONO, fontSize:'9px', color:C.MUTE_S }).setOrigin(1,0);
+      const body = this.add.text(px+36, ly+32, log.body, { fontFamily: F.MONO, fontSize:'12px', color:C.LIGHT_S, wordWrap:{ width: pw - 70, useAdvancedWrap:true }, lineSpacing:2 });
+      layer.add([lbg, stripe, tag, time, body]);
+      [lbg, stripe, tag, time, body].forEach(o => o.setAlpha(0));
+      this.tweens.add({ targets:[lbg, stripe, tag, time, body], alpha:1, duration:200, delay: 80 + i*120 });
+    });
+
+    const close = makeButton(this, px+pw-130, py+ph-46, 110, 30, 'CLOSE', { fontSize:13, onClick: () => this.toggleLogs(false) });
+    layer.add(close);
+  }
+}
+
+// =========================================================
+// ACCUSATIONSCENE
+// =========================================================
+class AccusationScene extends Phaser.Scene {
+  constructor() { super('AccusationScene'); }
+
+  create() {
+    this.gs = this.registry.get('gameState');
+    this.gs.gamePhase = 'accusation';
+    this.cameras.main.setBackgroundColor('#0d0514');
+
+    const grid = this.add.graphics();
+    grid.lineStyle(1, 0x261645, 1);
+    for (let x = 0; x <= 960; x += 40) { grid.beginPath(); grid.moveTo(x,0); grid.lineTo(x,640); grid.strokePath(); }
+    for (let y = 0; y <= 640; y += 40) { grid.beginPath(); grid.moveTo(0,y); grid.lineTo(960,y); grid.strokePath(); }
+    const diag = this.add.graphics();
+    diag.lineStyle(1, C.ACCENT, 0.3);
+    diag.beginPath(); diag.moveTo(0, 80); diag.lineTo(80, 0); diag.strokePath();
+    diag.beginPath(); diag.moveTo(960, 80); diag.lineTo(880, 0); diag.strokePath();
+
+    drawCanvasFrame(this);
+
+    this.add.rectangle(0, 0, 960, 56, C.BG_PANEL, 1).setOrigin(0,0);
+    this.add.rectangle(0, 56, 960, 2, C.ACCENT).setOrigin(0,0);
+    this.add.text(20, 18, '// FINAL ACCUSATION', { fontFamily: F.UI, fontSize:'18px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:5 });
+    this.add.text(940, 18, '// CASE: THE VOID CASE · CLOSE THE LOOP', { fontFamily: F.MONO, fontSize:'10px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(1,0);
+
+    this.add.text(480, 110, 'WHO IS THE MASTERMIND?', { fontFamily: F.UI, fontSize:'42px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:6 }).setOrigin(0.5);
+    this.add.rectangle(480, 142, 380, 3, C.ACCENT).setOrigin(0.5);
+    this.add.text(480, 168, 'select one. there is no second guess.', { fontFamily: F.MONO, fontSize:'13px', color:C.MUTE_S, letterSpacing:2, fontStyle:'italic' }).setOrigin(0.5);
+
+    const cardW = 160, cardH = 280, gap = 20;
+    const totalW = 5*cardW + 4*gap;
+    const startX = (960 - totalW) / 2;
+    const y = 220;
+
+    SUSPECTS.forEach((sus, i) => {
+      const x = startX + i*(cardW+gap);
+      const card = this.add.container(x, y);
+      const bg = this.add.rectangle(0, 0, cardW, cardH, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.MUTE);
+      const portBg = this.add.rectangle(8, 8, cardW-16, 200, 0x000000, 0).setOrigin(0,0).setStrokeStyle(1, C.ACCENT, 0.7);
+      const port = this.add.image(cardW/2, 108, sus.portrait).setOrigin(0.5).setDisplaySize(cardW-20, 196);
+      const numTag = this.add.text(14, 18, '0' + (i+1), { fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:2 });
+      const name = this.add.text(cardW/2, 226, sus.name, { fontFamily: F.UI, fontSize:'22px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:5 }).setOrigin(0.5);
+      const div = this.add.rectangle(cardW/2, 248, 60, 1, C.ACCENT).setOrigin(0.5);
+      const action = this.add.text(cardW/2, 264, '> ACCUSE', { fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:3 }).setOrigin(0.5);
+      const corners = drawAllCornerMarks(this, x+4, y+4, cardW-8, cardH-8, C.ACCENT, 14);
+      corners.setAlpha(0);
+
+      card.add([bg, portBg, port, numTag, name, div, action]);
+      bg.setInteractive({ useHandCursor:true });
+      bg.on('pointerover', () => {
+        bg.setStrokeStyle(2, C.ACCENT); action.setColor(C.ACCENT_S); corners.setAlpha(1);
+        this.tweens.add({ targets: card, scaleX:1.05, scaleY:1.05, x: x - cardW*0.025, y: y - cardH*0.025, duration:140 });
+      });
+      bg.on('pointerout', () => {
+        bg.setStrokeStyle(2, C.MUTE); action.setColor(C.ACCENT_S); corners.setAlpha(0);
+        this.tweens.add({ targets: card, scaleX:1, scaleY:1, x, y, duration:140 });
+      });
+      bg.on('pointerdown', () => {
+        bg.disableInteractive();
+        this.cameras.main.flash(180, 179, 102, 255);
+        this.cameras.main.fadeOut(360, 10, 10, 15);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start('EndingScene', { accused: sus.id, correct: sus.correct });
+        });
+      });
+    });
+
+    const back = makeButton(this, 20, 590, 140, 30, '← BACK', { fontSize:12, onClick: () => { this.scene.start('GameScene'); } });
+
+    const ev = this.gs.collectedEvidence.length;
+    const cn = this.gs.contradictionsTriggered.length;
+    this.add.text(940, 600, `EVIDENCE ${String(ev).padStart(2,'0')}/16  ·  CONTRADICTIONS ${cn}/05`, {
+      fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:2
+    }).setOrigin(1,0.5);
+
+    this.cameras.main.fadeIn(280, 10, 10, 15);
+  }
+}
+
+// =========================================================
+// ENDINGSCENE
+// =========================================================
+class EndingScene extends Phaser.Scene {
+  constructor() { super('EndingScene'); }
+
+  init(data) {
+    this.accused = data && data.accused;
+    this.correct = !!(data && data.correct);
+  }
+
+  create() {
+    const gs = this.registry.get('gameState');
+    this.cameras.main.setBackgroundColor(this.correct ? '#0a030f' : '#14050d');
+    drawCanvasFrame(this);
+
+    const grid = this.add.graphics();
+    grid.lineStyle(1, this.correct ? 0x1a0f2e : 0x2e0f1a, 1);
+    for (let x = 0; x <= 960; x += 40) { grid.beginPath(); grid.moveTo(x,0); grid.lineTo(x,640); grid.strokePath(); }
+    for (let y = 0; y <= 640; y += 40) { grid.beginPath(); grid.moveTo(0,y); grid.lineTo(960,y); grid.strokePath(); }
+
+    this.add.rectangle(0, 0, 960, 38, C.BG_PANEL, 1).setOrigin(0,0);
+    this.add.rectangle(0, 38, 960, 1, C.ACCENT).setOrigin(0,0);
+    this.add.text(20, 12, '// CASE FILE — VERDICT', { fontFamily: F.UI, fontSize:'14px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:4 });
+    this.add.text(940, 12, this.correct ? '// CASE CLOSED' : '// CASE OPEN — UNRESOLVED', { fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:2 }).setOrigin(1,0);
+
+    const verdict = this.correct ? 'CORRECT.' : 'INCORRECT.';
+    const big = this.add.text(480, 130, verdict, { fontFamily: F.UI, fontSize:'90px', fontStyle:'700', color:C.ACCENT_S, letterSpacing:10 }).setOrigin(0.5).setAlpha(0);
+    this.tweens.add({ targets: big, alpha:1, duration:400 });
+    const tw = big.width + 80, th = big.height + 30;
+    const border = this.add.rectangle(480, 130, tw, th, 0x000000, 0).setOrigin(0.5).setStrokeStyle(3, C.ACCENT).setAlpha(0);
+    this.tweens.add({ targets: border, alpha:1, duration:400 });
+    drawAllCornerMarks(this, 480-tw/2, 130-th/2, tw, th, C.ACCENT, 22);
+
+    this.add.text(480, 200, this.correct ? '// YOU SAW THE SHAPE OF IT.' : '// SOMEONE IS WALKING FREE.', { fontFamily: F.MONO, fontSize:'13px', color:C.MUTE_S, letterSpacing:4 }).setOrigin(0.5);
+
+    const cardX = 80, cardY = 250, cardW = 200, cardH = 280;
+    this.add.rectangle(cardX, cardY, cardW, cardH, C.BG_PANEL, 1).setOrigin(0,0).setStrokeStyle(2, C.ACCENT);
+    drawAllCornerMarks(this, cardX, cardY, cardW, cardH, C.ACCENT, 16);
+    const sus = SUSPECTS.find(s => s.id === this.accused) || SUSPECTS[0];
+    this.add.image(cardX + cardW/2, cardY + 110, sus.portrait).setOrigin(0.5).setDisplaySize(cardW-30, 196);
+    this.add.rectangle(cardX + cardW/2, cardY + 110, cardW-28, 198, 0x000000, 0).setOrigin(0.5).setStrokeStyle(1, C.ACCENT, 0.6);
+    this.add.text(cardX + cardW/2, cardY + 230, sus.name, { fontFamily: F.UI, fontSize:'22px', fontStyle:'700', color:C.LIGHT_S, letterSpacing:5 }).setOrigin(0.5);
+    this.add.rectangle(cardX + cardW/2, cardY + 252, 60, 1, C.ACCENT).setOrigin(0.5);
+    this.add.text(cardX + cardW/2, cardY + 264, this.correct ? 'CONVICTED' : 'ACCUSED', { fontFamily: F.MONO, fontSize:'11px', color: this.correct ? C.ACCENT_S : C.MUTE_S, letterSpacing:3 }).setOrigin(0.5);
+
+    const bx = 320, by = 260, bw = 580, bh = 270;
+    this.add.rectangle(bx, by, bw, bh, C.BG_PANEL, 0.95).setOrigin(0,0).setStrokeStyle(1, C.ACCENT, 0.6);
+    drawAllCornerMarks(this, bx, by, bw, bh, C.ACCENT, 14);
+    this.add.text(bx + 18, by + 16, '// CASE NOTES', { fontFamily: F.MONO, fontSize:'11px', color:C.ACCENT_S, letterSpacing:3 });
+    this.add.rectangle(bx + 18, by + 36, bw - 36, 1, C.ACCENT, 0.4).setOrigin(0,0);
+
+    const goodLines = [
+      'The Scheduler planned everything.',
+      'She cleared the TV studio with the anonymous letter.',
+      'The knockout gas was bought in threes.',
+      'The same panel type connects the labyrinth and the void.',
+      'The phone in the lower maze was planted.',
+      'The Void Case is closed.'
+    ];
+    const badLines = [
+      'You picked the wrong silhouette.',
+      'The timeline contradicts your conclusion.',
+      'The true mastermind planned every detail.',
+      'Someone else had the knowledge of the Void gate.',
+      'The killer is still within the facility.',
+      'And you let them walk away.'
+    ];
+    const lines = this.correct ? goodLines : badLines;
+
+    lines.forEach((t, i) => {
+      const txt = this.add.text(bx + 18, by + 56 + i*30, '> ' + t, {
+        fontFamily: F.MONO, fontSize:'14px', color: i === lines.length-1 ? C.ACCENT_S : C.LIGHT_S,
+        wordWrap:{ width: bw - 36, useAdvancedWrap:true }, fontStyle:'italic'
+      }).setAlpha(0);
+      this.tweens.add({ targets: txt, alpha:1, duration:260, delay: 600 + i*220 });
+    });
+
+    const ev = gs.collectedEvidence.length;
+    const cn = gs.contradictionsTriggered.length;
+    this.add.text(480, 555, `EVIDENCE COLLECTED ${String(ev).padStart(2,'0')}/16   ·   CONTRADICTIONS ${cn}/05`, {
+      fontFamily: F.MONO, fontSize:'11px', color:C.MUTE_S, letterSpacing:3
+    }).setOrigin(0.5);
+
+    const btnLabel = this.correct ? '[ CASE CLOSED ]' : '[ TRY AGAIN ]';
+    const btnX = (960 - 240) / 2;
+    const btn = makeButton(this, btnX, 590, 240, 38, btnLabel, {
+      fontSize: 16,
+      onClick: () => {
+        this.registry.set('gameState', {
+          currentRoom: 'planetarium',
+          collectedEvidence: [],
+          visitedRooms: [],
+          suspectsTalked: [],
+          pins: {},
+          contradictionsTriggered: [],
+          gamePhase: 'intro'
+        });
+        this.scene.start('IntroScene');
+      }
+    });
+    btn.setAlpha(0);
+    this.tweens.add({ targets: btn, alpha: 1, duration: 400, delay: 1500 });
+
+    this.cameras.main.fadeIn(360, 10, 10, 15);
+  }
+}
+
+// =========================================================
+// PHASER GAME CONFIG
+// =========================================================
+const config = {
+  type: Phaser.AUTO,
+  width: 960,
+  height: 640,
+  backgroundColor: '#0d0514',
+  parent: 'game-container',
+  scene: [BootScene, IntroScene, GameScene, AccusationScene, EndingScene],
+  dom: { createContainer: true },
+  scale: {
+    mode: Phaser.Scale.NONE,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  }
+};
+
+new Phaser.Game(config);
+
+// ============================================================
+// PARENT BRIDGE OVERLAY (injected by unified shell)
+// Posts caseLoaded / evidenceUpdate / caseSolved to parent.
+// ============================================================
+(function bridge(){
+  const CASE_ID = 'void';
+  const KILLER  = 'THE SCHEDULER';
+  function getGS(){ try{ const g = (window.Phaser && Phaser.GAMES && Phaser.GAMES[0]); return g && g.registry && g.registry.get('gameState'); }catch(e){ return null; } }
+  function getActiveSceneKeys(){ try{ const g=Phaser.GAMES[0]; return g.scene.scenes.filter(s=>s.scene.isActive()).map(s=>s.scene.key); }catch(e){ return []; } }
+  function metaSnapshot(){ const out={}; try{ for(const k in EVIDENCE_META){ out[k]={ ...EVIDENCE_META[k] }; } }catch(e){} return out; }
+  function post(type, payload){ try{ window.parent && window.parent.postMessage({ source:'mystery-case', caseId: CASE_ID, type, payload }, '*'); }catch(e){} }
+  let lastCount = -1, solved = false;
+  const meta = metaSnapshot();
+  post('caseLoaded', { caseId: CASE_ID, killer: KILLER, evidenceMeta: meta });
+  setInterval(()=>{
+    const gs = getGS(); if(!gs) return;
+    const ev = (gs.collectedEvidence||[]).slice();
+    if(ev.length !== lastCount){ lastCount = ev.length; post('evidenceUpdate', { evidence: ev, meta }); }
+    if(!solved){
+      const keys = getActiveSceneKeys();
+      if(keys.includes('EndingScene')){
+        try{ const sc = Phaser.GAMES[0].scene.getScene('EndingScene'); if(sc && sc.correct){ solved=true; post('caseSolved', { caseId:CASE_ID, killer:KILLER, evidence:ev }); } }catch(e){}
+      }
+    }
+  }, 600);
+  window.addEventListener('message', (e)=>{
+    const d = e.data; if(!d || d.target!=='mystery-case' || d.caseId!==CASE_ID) return;
+    if(d.type==='requestInventory'){ const gs=getGS(); post('inventoryReply',{ evidence: gs?gs.collectedEvidence:[], meta, killer:KILLER, requestId:d.requestId }); }
+  });
+})();
+
+</script>
+</body>
+</html>
