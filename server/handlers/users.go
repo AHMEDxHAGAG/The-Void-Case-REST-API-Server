@@ -125,6 +125,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	err = dao.DBUpdateUser(db.Db, request, theid)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

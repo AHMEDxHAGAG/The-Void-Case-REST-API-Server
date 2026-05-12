@@ -9,10 +9,11 @@ func DBGetLeaderboard(db *sql.DB) ([]models.Contestant, error) {
 	query := `SELECT RANK() OVER(order by correct_completions desc, completion_count desc) as rank, user_id, username, correct_completions, completion_count from users order by correct_completions desc, completion_count desc;`
 	var data []models.Contestant
 	rows, err := db.Query(query)
-
 	if err != nil {
 		return data, err
 	}
+
+	defer rows.Close()
 
 	for rows.Next() {
 		var datoum models.Contestant
@@ -23,7 +24,6 @@ func DBGetLeaderboard(db *sql.DB) ([]models.Contestant, error) {
 		data = append(data, datoum)
 	}
 
-	defer rows.Close()
 	return data, nil
 }
 
@@ -36,6 +36,8 @@ func DBGetMyLeaderboard(db *sql.DB, id string) (models.Contestant, error) {
 		return dnil, err
 	}
 
+	defer rows.Close()
+
 	for rows.Next() {
 		var datoum models.Contestant
 		err := rows.Scan(&datoum.Rank, &datoum.User_id, &datoum.Username, &datoum.Correct_completions, &datoum.Completion_count)
@@ -47,6 +49,5 @@ func DBGetMyLeaderboard(db *sql.DB, id string) (models.Contestant, error) {
 		}
 	}
 
-	defer rows.Close()
 	return dnil, err
 }

@@ -6,7 +6,7 @@ type User struct {
 	User_id             string    `json:"user_id"`
 	Username            string    `json:"username"`
 	Email               string    `json:"email"`
-	Hashed_password     string    `json:"hashed_password"`
+	Hashed_password     string    `json:"-"`
 	Save_data           []byte    `json:"save_data"`
 	Created_at          time.Time `json:"created_at"`
 	Updated_at          time.Time `json:"updated_at"`

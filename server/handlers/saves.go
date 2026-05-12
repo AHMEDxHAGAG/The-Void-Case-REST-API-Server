@@ -3,9 +3,11 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"net/http"
+
 	"github.com/AHMEDxHAGAG/server/DAO"
 	"github.com/AHMEDxHAGAG/server/db"
-	"net/http"
+	"github.com/AHMEDxHAGAG/server/models"
 )
 
 func GetSaveGame(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +68,7 @@ func UpdateSaveGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request string
+	var request models.Save
 	err = json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -79,8 +81,10 @@ func UpdateSaveGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = dao.UpdateSaveGame(db.Db, theid, request)
+	j, err := json.Marshal(request)
+	err = dao.UpdateSaveGame(db.Db, theid, j)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

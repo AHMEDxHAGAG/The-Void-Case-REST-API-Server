@@ -25,7 +25,7 @@ func DBGetUser(db *sql.DB, id string) (models.User, error) {
 }
 
 func DBGetAllUsers(db *sql.DB) ([]models.User, error) {
-	query := `SELECT user_id, username, save_data, created_at, updated_at, completed, completion_count, correct_completions from users;`
+	query := `SELECT user_id, username, created_at, updated_at, completed, completion_count, correct_completions from users;`
 
 	var users []models.User
 
@@ -37,7 +37,7 @@ func DBGetAllUsers(db *sql.DB) ([]models.User, error) {
 
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.User_id, &user.Username, &user.Save_data, &user.Created_at, &user.Updated_at, &user.Completed, &user.Completion_count, &user.Correct_completions); err != nil {
+		if err := rows.Scan(&user.User_id, &user.Username, &user.Created_at, &user.Updated_at, &user.Completed, &user.Completion_count, &user.Correct_completions); err != nil {
 			return users, err
 		}
 		users = append(users, user)
@@ -61,7 +61,7 @@ func DBDeleteUser(db *sql.DB, id string) error {
 }
 
 func DBSearchUserByEmail(db *sql.DB, email string) (string, string, error) {
-	query := `SELECT user_id, hashed_password frome users where email = ?;`
+	query := `SELECT user_id, hashed_password from users where email = ?;`
 	var id, pass string
 	err := db.QueryRow(query, email).Scan(&id, &pass)
 	if err != nil {

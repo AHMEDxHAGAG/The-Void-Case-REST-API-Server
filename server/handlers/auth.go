@@ -31,11 +31,12 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	err = dao.CreateSession(db.Db, id, session)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	cookie := http.Cookie{
 		Name:   "session_id",
-		Value:  utilities.GenerateUUId(),
+		Value:  session,
 		Path:   "/",
 		Secure: true,
 	}
@@ -77,11 +78,12 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	err = dao.CreateSession(db.Db, user.User_id, session)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	cookie := http.Cookie{
 		Name:   "session_id",
-		Value:  utilities.GenerateUUId(),
+		Value:  "session",
 		Path:   "/",
 		Secure: true,
 	}
@@ -98,6 +100,7 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	err = dao.DeleteSession(db.Db, session)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	cookie := http.Cookie{

@@ -27,7 +27,7 @@ func DBGetSaveGame(db *sql.DB, id string) ([]byte, error) {
 	return data, err
 }
 
-func UpdateSaveGame(db *sql.DB, id string, data string) error {
+func UpdateSaveGame(db *sql.DB, id string, data []byte) error {
 	query := `update users set save_data = ? where user_id = ?`
 	_, err := db.Exec(query, data, id)
 	return err
