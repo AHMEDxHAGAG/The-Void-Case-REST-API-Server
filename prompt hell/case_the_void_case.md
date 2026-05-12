@@ -1,5 +1,5 @@
 # THE VOID CASE
-**Setting:** An underground facility on Halloween night
+**Setting:** An underground facility
 **Trial victims:** The Stabbing Victim, The Strangled Victim, The Sawn Victim, The Stabbed Floor Victim
 **The Blackened:** The Scheduler
 
@@ -7,7 +7,7 @@
 
 ## Overview
 
-On Halloween night, four people are killed across several locations in the underground facility. The investigation begins after a pre-recorded broadcast — played from the TV station by a masked, cloaked figure with a voice changer — instructs the group to search specific areas. When they finally unlock the Void of Judgement gates, a fifth victim dies instantly as a rigged saw falls on them. The trial begins immediately after.
+Four people are killed across several locations in the underground facility. The investigation begins after a pre-recorded broadcast — played from the TV station by a masked, cloaked figure with a voice changer — instructs the group to search specific areas. When they finally unlock the Void of Judgement gates, a fifth victim dies instantly as a rigged saw falls on them. The trial begins immediately after.
 
 The killer is The Scheduler: methodical, present all night, and the only person with access to every location and the knowledge to build every trap.
 
@@ -58,7 +58,7 @@ The group investigates all locations, collecting evidence. When they finally unl
 - **Stabbing Victim's Body** — Multiple thin, deep stab wounds on both back and front. Stuffed into a space suit after death. A lot of blood beneath the suit.
 - **Wet Space Suit** — The suit the victim was found in is wet on the outside, indicating recent use.
 - **Missing Suit Stand** — One display stand is empty. A suit is gone.
-- **Work Notice** — Most employees were out of their usual locations for Halloween preparations, meaning fewer witnesses.
+- **Work Notice** — Most employees were out of their usual locations for preparations, meaning fewer witnesses.
 
 ### Mirror Labyrinth
 - **Object Trail** — Random small objects placed in a deliberate path from the entrance to a specific floor panel circled by objects.
