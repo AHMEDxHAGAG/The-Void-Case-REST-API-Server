@@ -57,12 +57,12 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 
 	if services.EmailDuplicated(auth.Email) {
 		http.Error(w, "Email already avaliable, login instead", http.StatusBadRequest)
+		return
 	}
 	user.Email = auth.Email
 	user.Username = auth.Username
 	user.User_id = utilities.GenerateUUId()
-
-	user.Hashed_password, err = utilities.HashPassword(user.Hashed_password)
+	user.Hashed_password, err = utilities.HashPassword(auth.Password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

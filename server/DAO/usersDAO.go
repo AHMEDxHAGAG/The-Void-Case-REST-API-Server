@@ -61,7 +61,7 @@ func DBDeleteUser(db *sql.DB, id string) error {
 }
 
 func DBSearchUserByEmail(db *sql.DB, email string) (string, string, error) {
-	query := `SELECT user_id, hashed_password where email = ?;`
+	query := `SELECT user_id, hashed_password frome users where email = ?;`
 	var id, pass string
 	err := db.QueryRow(query, email).Scan(&id, &pass)
 	if err != nil {
