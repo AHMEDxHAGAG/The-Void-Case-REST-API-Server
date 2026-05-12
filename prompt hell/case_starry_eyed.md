@@ -29,10 +29,10 @@ The real revolver — an old model with five unused bullets remaining — was fo
 
 ### On Set
 - **Stage Position A** — The Lead Actor's mark for the gunshot scene.
-- **Stage Position B** — The Gun Actor's mark for the same scene.
-- **Stage Position C** — A mark for The Fourth Character, who was scripted to walk into the scene as the gunshot happened.
+- **Stage Position B** — The Gunman's mark for the same scene.
+- **Stage Position C** — A mark for The Understudy, who was scripted to walk into the scene as the gunshot happened.
 - **The Sofa** — A worn prop sofa used on stage.
-- **The Set Door** — The door through which The Gun Actor was to have exited after the final scene.
+- **The Set Door** — The door through which The Gunman was to have exited after the final scene.
 - **Table and Chair** — Simple set dressing.
 - **Standard Lamp** — A dim practical light used on set.
 
@@ -45,7 +45,7 @@ The real revolver — an old model with five unused bullets remaining — was fo
 ### Backstage Right
 - **Ladder** — Provides access to the lighting bridge above the stage.
 - **Oil Stains** — A large trail of oil smeared along the back wall, appearing to have been made by a hand dragged along the surface.
-- **The Unconscious Third Character** — Found with the murder revolver in hand, struck multiple times in the back of the head. Five unused bullets remain in the cylinder.
+- **The Stagehand** — Found with the murder revolver in hand, struck multiple times in the back of the head. Five unused bullets remain in the cylinder.
 - **The Revolver** — The weapon that killed The Lead Actor. Identified as the source of the fatal bullet. Found in The Third Character's hand.
 
 ### Backstage Left (near Set Door)
@@ -60,10 +60,10 @@ The real revolver — an old model with five unused bullets remaining — was fo
 | Role | Notes |
 |---|---|
 | **The Lead Actor** | The victim. Shot once through the chest at close range. Had a fake blood mechanism in his costume that was never triggered. |
-| **The Gun Actor** | Scripted to fire at The Lead Actor during the performance. Had a set exit point through the set door. |
-| **The Fourth Character** | Scripted to walk into the scene during the gunshot. |
-| **The Unconscious Third Character** | Found backstage right with the real revolver in hand, struck repeatedly in the back of the head. Apparently framed. |
-| **The Killer** *(unnamed in case file)* | Shot The Lead Actor, planted the revolver on The Third Character after incapacitating them, and left a personal note at the scene. |
+| **The Gunman** | Scripted to fire at The Lead Actor during the performance. Had a set exit point through the set door. |
+| **The Understudy** | Scripted to walk into the scene during the gunshot. |
+| **The Stagehand** | Found backstage right with the real revolver in hand, struck repeatedly in the back of the head. Apparently framed. |
+| **The Director** | Shot The Lead Actor, planted the revolver on The Third Stagehand after incapacitating them, and left a personal note at the scene. |
 
 ---
 
@@ -75,7 +75,7 @@ The real revolver — an old model with five unused bullets remaining — was fo
 
 3. **The oil trail backstage right.** Oil is smeared along the back wall as if someone's hand ran along it. The replica gun is also submerged in oil. The oil connects backstage left (where the replica and its oil are) to backstage right (where the unconscious body and the real revolver are). Someone moved between these areas.
 
-4. **The Third Character was framed.** Struck multiple times in the back of the head, then had the revolver placed in their hands. They did not shoot anyone — they were set up to appear guilty.
+4. **The Understudy was framed.** Struck multiple times in the back of the head, then had the revolver placed in their hands. They did not shoot anyone — they were set up to appear guilty.
 
 5. **The note is personal, not a prop.** *"You'll pay for betraying me."* This was brought by the killer specifically. It was placed at The Lead Actor's position and shot through when the bullet was fired at close range. The killer knew exactly where The Lead Actor would be standing.
 
@@ -85,6 +85,4 @@ The real revolver — an old model with five unused bullets remaining — was fo
 
 ## Notes
 
-The case file is partially complete. Character names and some timeline/execution details are marked as placeholders (`[main actor]`, `[gun actor]`, `[3rd char]`, `[4th char]`). The timeline section and execution section are listed but not yet written. What exists establishes the physical evidence clearly — the case appears to be mid-construction pending the full character names and scene account.
-
-The oil trail, the missing second gun slot, the discarded remote switch, and the personal note are the four physical pillars of the case. The framing of The Third Character is apparent from the head wounds; the killer is someone else who was on or near the stage during the scene.
+The oil trail, the missing second gun slot, the discarded remote switch, and the personal note are the four physical pillars of the case. The framing of The Understudy is apparent from the head wounds; the killer is someone else who was on or near the stage during the scene.
