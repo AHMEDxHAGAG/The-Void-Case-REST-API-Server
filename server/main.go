@@ -4,25 +4,26 @@ import (
 	"fmt"
 	"github.com/AHMEDxHAGAG/server/db"
 	"github.com/AHMEDxHAGAG/server/handlers"
+	"log"
 	"net/http"
 )
 
 func main() {
 	db.Connect()
+	defer db.Db.Close()
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/users/{id}", handlers.GetUser)
 	mux.HandleFunc("GET /api/users/me", handlers.GetUserMe)
 	mux.HandleFunc("GET /api/users/", handlers.GetAllUsers)
-	mux.HandleFunc("DELETE /api/users/", handlers.DeleteUser)
-	mux.HandleFunc("POST /api/users/", handlers.UpdateUser)
-	mux.HandleFunc("PUT /api/users/", handlers.CreateUser)
+	mux.HandleFunc("DELETE /api/users/me", handlers.DeleteUser)
+	mux.HandleFunc("PUT /api/users/me", handlers.UpdateUser)
+	mux.HandleFunc("POST /api/users/me", handlers.Signup)
 
 	mux.HandleFunc("POST /api/auth/signup", handlers.Signup)
 	mux.HandleFunc("POST /api/auth/login", handlers.Login)
 	mux.HandleFunc("POST /api/auth/logout", handlers.Logout)
-	mux.HandleFunc("GET /api/auth/me", handlers.GetSessionMe)
 
 	mux.HandleFunc("GET /api/leaderboard", handlers.Leaderboard)
 	mux.HandleFunc("GET /api/leaderboard/me", handlers.LeaderboardMe)
@@ -33,9 +34,10 @@ func main() {
 
 	mux.HandleFunc("POST /api/hint", handlers.CreateHint)
 
-	fmt.Println("Server Listeneing on Port :8080")
+	fmt.Println("Server Listening on Port :8080")
 
-	http.ListenAndServe(":8080", mux)
-
-	defer db.Db.Close()
+	err := http.ListenAndServe(":8080", mux)
+	if err != nil {
+		log.Fatal(err)
+	}
 }

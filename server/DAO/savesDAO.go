@@ -20,9 +20,9 @@ func CreateSaveGame(db *sql.DB, id string) error {
 	return err
 }
 
-func DBGetSaveGame(db *sql.DB, id string) (string, error) {
+func DBGetSaveGame(db *sql.DB, id string) ([]byte, error) {
 	query := `SELECT save_data from users where user_id = ?;`
-	var data string
+	var data []byte
 	err := db.QueryRow(query, id).Scan(&data)
 	return data, err
 }

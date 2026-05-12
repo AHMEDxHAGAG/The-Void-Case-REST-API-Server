@@ -33,7 +33,12 @@ func LeaderboardMe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
 		return
 	}
-	id := dao.GetID(cookie.Value)
+	id, err := dao.GetID(db.Db, cookie.Value)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	respond, err = dao.DBGetMyLeaderboard(db.Db, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

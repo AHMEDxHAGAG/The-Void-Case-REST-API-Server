@@ -38,7 +38,7 @@ func DBGetAllUsers(db *sql.DB) ([]models.User, error) {
 	for rows.Next() {
 		var user models.User
 		if err := rows.Scan(&user.User_id, &user.Username, &user.Save_data, &user.Created_at, &user.Updated_at, &user.Completed, &user.Completion_count, &user.Correct_completions); err != nil {
-			return users, nil
+			return users, err
 		}
 		users = append(users, user)
 	}
@@ -47,7 +47,7 @@ func DBGetAllUsers(db *sql.DB) ([]models.User, error) {
 
 func DBUpdateUser(db *sql.DB, user models.User, id string) error {
 	query := `update users set username = ?, email = ? where user_id = ?`
-	_, err := db.Exec(query, user.Username, user.Email, user.User_id)
+	_, err := db.Exec(query, user.Username, user.Email, id)
 	return err
 }
 
@@ -58,4 +58,15 @@ func DBDeleteUser(db *sql.DB, id string) error {
 		return err
 	}
 	return nil
+}
+
+func DBSearchUserByEmail(db *sql.DB, email string) (string, string, error) {
+	query := `SELECT user_id, hashed_password where email = ?;`
+	var id, pass string
+	err := db.QueryRow(query, email).Scan(&id, &pass)
+	if err != nil {
+		return "", "", err
+	}
+	return id, pass, nil
+
 }
