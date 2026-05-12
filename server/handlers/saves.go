@@ -40,14 +40,13 @@ func GetSaveGame(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreateSaveGame(w http.ResponseWriter, r *http.Request) {
-
-	var request string
-	err := json.NewDecoder(r.Body).Decode(&request)
+	cookie, err := r.Cookie("session_id")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
 		return
 	}
-	err = dao.CreateSaveGame(db.Db, request)
+
+	err = dao.CreateSaveGame(db.Db, dao.GetID(cookie.Value))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -56,14 +55,19 @@ func CreateSaveGame(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateSaveGame(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
+		return
+	}
+
 	var request string
-	err := json.NewDecoder(r.Body).Decode(&request)
+	err = json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	err = dao.UpdateSaveGame(db.Db, id, request)
+	err = dao.UpdateSaveGame(db.Db, dao.GetID(cookie.Value), request)
 	if err != nil {
 		return
 	}

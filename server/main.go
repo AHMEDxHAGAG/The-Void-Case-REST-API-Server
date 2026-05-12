@@ -33,8 +33,6 @@ func main() {
 
 	mux.HandleFunc("POST /api/hint", handlers.CreateHint)
 
-	mux.HandleFunc("POST /api/complete", handlers.CreateCompletion)
-
 	fmt.Println("Server Listeneing on Port :8080")
 
 	http.ListenAndServe(":8080", mux)
