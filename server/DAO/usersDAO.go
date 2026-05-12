@@ -24,7 +24,7 @@ func DBGetUser(db *sql.DB, id string) (models.User, error) {
 	return user, nil
 }
 
-func DBGetAllUsers(db *sql.DB, id string) ([]models.User, error) {
+func DBGetAllUsers(db *sql.DB) ([]models.User, error) {
 	query := `SELECT user_id, username, save_data, created_at, updated_at, completed, completion_count, correct_completions from users;`
 
 	var users []models.User

@@ -9,9 +9,13 @@ import (
 )
 
 func GetSaveGame(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
+		return
+	}
 
-	respond, err := dao.DBGetSaveGame(db.Db, id)
+	respond, err := dao.DBGetSaveGame(db.Db, dao.GetID(cookie.Value))
 
 	if err != nil {
 		if err == sql.ErrNoRows {

@@ -13,15 +13,16 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/users/{id}", handlers.GetUser)
+	mux.HandleFunc("GET /api/users/me", handlers.GetUserMe)
 	mux.HandleFunc("GET /api/users/", handlers.GetAllUsers)
-	mux.HandleFunc("DELETE /api/users/{id}", handlers.DeleteUser)
-	mux.HandleFunc("POST /api/users/{id}", handlers.UpdateUser)
+	mux.HandleFunc("DELETE /api/users/", handlers.DeleteUser)
+	mux.HandleFunc("POST /api/users/", handlers.UpdateUser)
 	mux.HandleFunc("PUT /api/users/", handlers.CreateUser)
 
 	mux.HandleFunc("POST /api/auth/signup", handlers.Signup)
 	mux.HandleFunc("POST /api/auth/login", handlers.Login)
 	mux.HandleFunc("POST /api/auth/logout", handlers.Logout)
-	mux.HandleFunc("GET /api/auth/me", handlers.AuthMe)
+	mux.HandleFunc("GET /api/auth/me", handlers.GetSessionMe)
 
 	mux.HandleFunc("GET /api/leaderboard", handlers.Leaderboard)
 	mux.HandleFunc("GET /api/leaderboard/me", handlers.LeaderboardMe)

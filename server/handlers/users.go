@@ -7,7 +7,6 @@ import (
 	"github.com/AHMEDxHAGAG/server/db"
 	"github.com/AHMEDxHAGAG/server/models"
 	"github.com/AHMEDxHAGAG/server/utilities"
-	"log"
 	"net/http"
 )
 
@@ -41,12 +40,43 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func GetUserMe(w http.ResponseWriter, r *http.Request) {
+
+	var respond models.User
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
+		return
+	}
+	respond, err = dao.DBGetUser(db.Db, dao.GetID(cookie.Value))
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.NotFound(w, r)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	j, err := json.Marshal(respond)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(j)
+
+}
+
 func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 
-	id := r.PathValue("id")
 	var respond []models.User
 
-	respond, err := dao.DBGetAllUsers(db.Db, id)
+	respond, err := dao.DBGetAllUsers(db.Db)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -99,14 +129,19 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
+		return
+	}
+
 	var request models.User
-	err := json.NewDecoder(r.Body).Decode(&request)
+	err = json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	err = dao.DBUpdateUser(db.Db, request, id)
+	err = dao.DBUpdateUser(db.Db, request, dao.GetID(cookie.Value))
 	if err != nil {
 		return
 	}
@@ -114,14 +149,17 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
+		return
+	}
 
-	id := r.PathValue("id")
-	err := dao.DBDeleteUser(db.Db, id)
+	err = dao.DBDeleteUser(db.Db, dao.GetID(cookie.Value))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf(`User_ID: %v, Deleted\n`, id)
 	w.WriteHeader(http.StatusNoContent)
 }

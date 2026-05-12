@@ -14,6 +14,6 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func AuthMe(w http.ResponseWriter, r *http.Request) {
+func GetSessionMe(w http.ResponseWriter, r *http.Request) {
 
 }
