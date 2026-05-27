@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/AHMEDxHAGAG/server/db"
-	"github.com/AHMEDxHAGAG/server/handlers"
 	"log"
 	"net/http"
+
+	"github.com/AHMEDxHAGAG/server/db"
+	"github.com/AHMEDxHAGAG/server/handlers"
 )
 
 func main() {
