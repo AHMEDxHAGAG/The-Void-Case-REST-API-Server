@@ -15,5 +15,3 @@ CREATE TABLE if not exists sessions (
   user_id TEXT not NULL unique,
   session_id TEXT not NULL
 );
-
-
