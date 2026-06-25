@@ -3,20 +3,19 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
-	"github.com/AHMEDxHAGAG/server/DAO"
+	"net/http"
+
+	dao "github.com/AHMEDxHAGAG/server/DAO"
 	"github.com/AHMEDxHAGAG/server/db"
 	"github.com/AHMEDxHAGAG/server/models"
-	"net/http"
 )
 
 func GetUser(w http.ResponseWriter, r *http.Request) {
-
 	id := r.PathValue("id")
 
 	var respond models.User
 
-	respond, err := dao.DBGetUser(db.Db, id)
-
+	respond, err := dao.DBGetUser(db.DB, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.NotFound(w, r)
@@ -35,25 +34,26 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(j)
-
+	_, err = w.Write(j)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func GetUserMe(w http.ResponseWriter, r *http.Request) {
-
 	var respond models.User
 	cookie, err := r.Cookie("session_id")
 	if err != nil {
 		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
 		return
 	}
-	theid, err := dao.GetID(db.Db, cookie.Value)
+	theid, err := dao.GetID(db.DB, cookie.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respond, err = dao.DBGetUser(db.Db, theid)
-
+	respond, err = dao.DBGetUser(db.DB, theid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.NotFound(w, r)
@@ -72,16 +72,17 @@ func GetUserMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(j)
-
+	_, err = w.Write(j)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func GetAllUsers(w http.ResponseWriter, r *http.Request) {
-
 	var respond []models.User
 
-	respond, err := dao.DBGetAllUsers(db.Db)
-
+	respond, err := dao.DBGetAllUsers(db.DB)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.NotFound(w, r)
@@ -100,8 +101,11 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(j)
-
+	_, err = w.Write(j)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
@@ -117,13 +121,13 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	theid, err := dao.GetID(db.Db, cookie.Value)
+	theid, err := dao.GetID(db.DB, cookie.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = dao.DBUpdateUser(db.Db, request, theid)
+	err = dao.DBUpdateUser(db.DB, request, theid)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -138,13 +142,13 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	theid, err := dao.GetID(db.Db, cookie.Value)
+	theid, err := dao.GetID(db.DB, cookie.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = dao.DBDeleteUser(db.Db, theid)
+	err = dao.DBDeleteUser(db.DB, theid)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

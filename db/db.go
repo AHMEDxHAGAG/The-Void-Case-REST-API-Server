@@ -1,22 +1,24 @@
+// Package db
 package db
 
 import (
 	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
 	"log"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
-var Db *sql.DB
+var DB *sql.DB
 
 func Connect() {
 	connectStr := "root:200692@tcp(localhost:3306)/puzzle"
 	var err error
-	Db, err = sql.Open("mysql", connectStr)
+	DB, err = sql.Open("mysql", connectStr)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err = Db.Ping(); err != nil {
+	if err = DB.Ping(); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("Connected To mysql")

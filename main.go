@@ -11,8 +11,9 @@ import (
 
 func main() {
 	db.Connect()
-	defer db.Db.Close()
-
+	defer func() {
+		_ = db.DB.Close()
+	}()
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/users/{id}", handlers.GetUser)

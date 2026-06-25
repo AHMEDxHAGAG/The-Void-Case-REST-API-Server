@@ -1,7 +1,9 @@
+// Package dao
 package dao
 
 import (
 	"database/sql"
+
 	"github.com/AHMEDxHAGAG/server/models"
 )
 
@@ -12,7 +14,6 @@ func CreateSession(db *sql.DB, id string, session string) error {
 		return err
 	}
 	return nil
-
 }
 
 func DeleteSession(db *sql.DB, session string) error {
@@ -27,6 +28,6 @@ func DeleteSession(db *sql.DB, session string) error {
 func GetID(db *sql.DB, session string) (id string, err error) {
 	query := `select user_id from sessions where session_id = ?`
 	var s models.Session
-	err = db.QueryRow(query, session).Scan(&s.User_id)
-	return s.User_id, err
+	err = db.QueryRow(query, session).Scan(&s.UserID)
+	return s.UserID, err
 }

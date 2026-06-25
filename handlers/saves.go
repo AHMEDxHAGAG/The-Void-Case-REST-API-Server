@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/AHMEDxHAGAG/server/DAO"
+	dao "github.com/AHMEDxHAGAG/server/DAO"
 	"github.com/AHMEDxHAGAG/server/db"
 	"github.com/AHMEDxHAGAG/server/models"
 )
@@ -16,13 +16,12 @@ func GetSaveGame(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
 		return
 	}
-	theid, err := dao.GetID(db.Db, cookie.Value)
+	theid, err := dao.GetID(db.DB, cookie.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	respond, err := dao.DBGetSaveGame(db.Db, theid)
-
+	respond, err := dao.DBGetSaveGame(db.DB, theid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.NotFound(w, r)
@@ -37,8 +36,10 @@ func GetSaveGame(w http.ResponseWriter, r *http.Request) {
 	j := respond
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(j)
-
+	_, err = w.Write(j)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func CreateSaveGame(w http.ResponseWriter, r *http.Request) {
@@ -47,13 +48,13 @@ func CreateSaveGame(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
 		return
 	}
-	theid, err := dao.GetID(db.Db, cookie.Value)
+	theid, err := dao.GetID(db.DB, cookie.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = dao.CreateSaveGame(db.Db, theid)
+	err = dao.CreateSaveGame(db.DB, theid)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -75,14 +76,18 @@ func UpdateSaveGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	theid, err := dao.GetID(db.Db, cookie.Value)
+	theid, err := dao.GetID(db.DB, cookie.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	j, err := json.Marshal(request)
-	err = dao.UpdateSaveGame(db.Db, theid, j)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	err = dao.UpdateSaveGame(db.DB, theid, j)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

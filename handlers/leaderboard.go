@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/AHMEDxHAGAG/server/DAO"
+	dao "github.com/AHMEDxHAGAG/server/DAO"
 	"github.com/AHMEDxHAGAG/server/db"
 	"github.com/AHMEDxHAGAG/server/models"
 )
 
 func Leaderboard(w http.ResponseWriter, r *http.Request) {
 	var respond []models.Contestant
-	respond, err := dao.DBGetLeaderboard(db.Db)
+	respond, err := dao.DBGetLeaderboard(db.DB)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -23,7 +23,11 @@ func Leaderboard(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(j)
+	_, err = w.Write(j)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func LeaderboardMe(w http.ResponseWriter, r *http.Request) {
@@ -33,13 +37,13 @@ func LeaderboardMe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "You Need To Login/Signup", http.StatusForbidden)
 		return
 	}
-	id, err := dao.GetID(db.Db, cookie.Value)
+	id, err := dao.GetID(db.DB, cookie.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	respond, err = dao.DBGetMyLeaderboard(db.Db, id)
+	respond, err = dao.DBGetMyLeaderboard(db.DB, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -51,5 +55,9 @@ func LeaderboardMe(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(j)
+	_, err = w.Write(j)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
