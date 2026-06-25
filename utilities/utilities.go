@@ -1,3 +1,4 @@
+// Package utilities
 package utilities
 
 import (
@@ -5,7 +6,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func GenerateUUId() string {
+func GenerateUUID() string {
 	return uuid.NewString()
 }
 

@@ -30,7 +30,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session := utilities.GenerateUUId()
+	session := utilities.GenerateUUID()
 	err = dao.CreateSession(db.DB, id, session)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -71,7 +71,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		Completed:          false,
 		Email:              auth.Email,
 		Username:           auth.Username,
-		UserID:             utilities.GenerateUUId(),
+		UserID:             utilities.GenerateUUID(),
 		HashedPassword:     hashedPassword,
 	}
 
@@ -81,7 +81,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session := utilities.GenerateUUId()
+	session := utilities.GenerateUUID()
 	err = dao.CreateSession(db.DB, user.UserID, session)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
